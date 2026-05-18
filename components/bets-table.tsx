@@ -80,6 +80,8 @@ export function BetsTable({ bets, title = 'Bet History', showFilters = false }: 
                 <TableHead className="text-muted-foreground">Match</TableHead>
                 <TableHead className="text-muted-foreground hidden md:table-cell">Selection</TableHead>
                 <TableHead className="text-right text-muted-foreground">Odds</TableHead>
+                <TableHead className="text-right text-muted-foreground hidden lg:table-cell">Implied %</TableHead>
+                <TableHead className="text-right text-muted-foreground hidden lg:table-cell">Opp. Odds</TableHead>
                 <TableHead className="text-right text-muted-foreground">Stake</TableHead>
                 <TableHead className="text-right text-muted-foreground">P/L</TableHead>
                 <TableHead className="text-center text-muted-foreground">Status</TableHead>
@@ -115,6 +117,12 @@ export function BetsTable({ bets, title = 'Bet History', showFilters = false }: 
                   </TableCell>
                   <TableCell className="text-right font-mono text-foreground">
                     {bet.odds > 0 ? bet.odds.toFixed(2) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground text-sm hidden lg:table-cell">
+                    {bet.impliedProbability?.toFixed(1)}%
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground text-sm hidden lg:table-cell">
+                    {bet.estimatedOpponentOdds?.toFixed(2) || '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-foreground">
                     ${bet.stake.toFixed(2)}

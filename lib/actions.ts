@@ -19,6 +19,12 @@ export interface DbBet {
   balance_after: number | null
   tournament_id: string | null
   created_at: string
+  // Vig metrics
+  implied_probability: number | null
+  estimated_opponent_odds: number | null
+  break_even_win_rate: number | null
+  manual_opponent_odds: number | null
+  estimated_edge: number | null
 }
 
 export interface DbTransaction {
@@ -68,7 +74,13 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
       profit_loss: bet.type === 'pending' ? null : bet.profitLoss,
       status: bet.type,
       balance_after: bet.balance,
-      tournament_id: null
+      tournament_id: null,
+      // Vig metrics
+      implied_probability: bet.impliedProbability,
+      estimated_opponent_odds: bet.estimatedOpponentOdds,
+      break_even_win_rate: bet.breakEvenWinRate,
+      manual_opponent_odds: bet.manualOpponentOdds || null,
+      estimated_edge: bet.estimatedEdge || null
     })
     
     if (error) {

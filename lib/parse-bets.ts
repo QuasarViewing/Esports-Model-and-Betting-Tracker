@@ -18,6 +18,12 @@ export interface ParsedBet {
   tournament: string
   isLive: boolean
   betType: 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other'
+  // Vig/Edge metrics
+  impliedProbability: number      // 1/odds as percentage
+  estimatedOpponentOdds: number   // Calculated assuming 5% vig
+  breakEvenWinRate: number        // Win rate needed to break even
+  manualOpponentOdds?: number     // User can override
+  estimatedEdge?: number          // If user provides their probability estimate
 }
 
 export interface ParsedTransaction {
@@ -114,6 +120,28 @@ const VALORANT_TEAMS = [
   'Team Heretics', 'Karmine Corp', 'KC', 'BBL Esports', 'EDward Gaming', 'EDG',
   'Bilibili Gaming', 'Trace Esports', 'Talon Esports', 'Global Esports', 'GE'
 ]
+
+// Calculate vig metrics for a bet
+function calculateVigMetrics(odds: number, vigPercent: number = 5): {
+  impliedProbability: number
+  estimatedOpponentOdds: number
+  breakEvenWinRate: number
+} {
+  // Implied probability from odds (as percentage)
+  const impliedProbability = (1 / odds) * 100
+  
+  // Assuming market has X% vig (default 5%), calculate opponent odds
+  // Total implied = 100% + vig
+  // Opponent implied = (100 + vig) - your implied
+  const totalImplied = 100 + vigPercent
+  const opponentImplied = totalImplied - impliedProbability
+  const estimatedOpponentOdds = opponentImplied > 0 ? 100 / opponentImplied : 1.01
+  
+  // Break-even win rate is just implied probability
+  const breakEvenWinRate = impliedProbability
+  
+  return { impliedProbability, estimatedOpponentOdds, breakEvenWinRate }
+}
 
 function generateHash(date: string, time: string, match: string, odds: number, stake: number): string {
   const str = `${date}|${time}|${match}|${odds}|${stake}`
@@ -358,6 +386,7 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       if (match && odds > 0 && stake > 0) {
         const game = detectGame(match, selection)
         const hash = generateHash(datePart, timePart, match, odds, stake)
+        const vigMetrics = calculateVigMetrics(odds)
         
         // Create bet signature for deduplication (same bet placed)
         const betSignature = `${match}|${selection}|${odds}|${stake}`
@@ -379,7 +408,11 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
           game,
           tournament: detectTournament(match, selection, game),
           isLive: match.toLowerCase().includes('live'),
-          betType: detectBetType(selection)
+          betType: detectBetType(selection),
+          // Vig metrics
+          impliedProbability: vigMetrics.impliedProbability,
+          estimatedOpponentOdds: vigMetrics.estimatedOpponentOdds,
+          breakEvenWinRate: vigMetrics.breakEvenWinRate
         }
         
         // If we've seen this bet before, keep the settled version
