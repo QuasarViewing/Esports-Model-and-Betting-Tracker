@@ -354,19 +354,47 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       continue
     }
     
-    // The data format has TYPE at the END (line 8), not the beginning!
-    // Format: date, match, selection, eventDate, odds, stake, profit, balance, type
-    const dateStr = lines[i] || ''
-    const match = lines[i + 1] || ''
-    const selection = lines[i + 2] || ''
-    const eventDate = lines[i + 3] || ''
-    const oddsStr = lines[i + 4] || ''
-    const stakeStr = lines[i + 5] || ''
-    const profitStr = lines[i + 6] || ''
-    const balanceStr = lines[i + 7] || ''
-    const typeLine = lines[i + 8]?.toLowerCase() || ''
+    // DETECT FORMAT: Check if line 0 is a TYPE or a DATE
+    // Format A (TYPE FIRST): Win/Loss, date, match, selection, eventDate, odds, stake, profit, balance
+    // Format B (TYPE LAST): date, match, selection, eventDate, odds, stake, profit, balance, Win/Loss
+    const firstLine = lines[i]?.toLowerCase() || ''
+    const isTypeFirst = ['win', 'loss', 'pending', 'cashed out', 'stake'].includes(firstLine)
     
-    // Check if this looks like a valid bet entry by checking the type line
+    let typeLine: string
+    let dateStr: string
+    let match: string
+    let selection: string
+    let eventDate: string
+    let oddsStr: string
+    let stakeStr: string
+    let profitStr: string
+    let balanceStr: string
+    
+    if (isTypeFirst) {
+      // Format A: type is first
+      typeLine = lines[i]?.toLowerCase() || ''
+      dateStr = lines[i + 1] || ''
+      match = lines[i + 2] || ''
+      selection = lines[i + 3] || ''
+      eventDate = lines[i + 4] || ''
+      oddsStr = lines[i + 5] || ''
+      stakeStr = lines[i + 6] || ''
+      profitStr = lines[i + 7] || ''
+      balanceStr = lines[i + 8] || ''
+    } else {
+      // Format B: type is last
+      dateStr = lines[i] || ''
+      match = lines[i + 1] || ''
+      selection = lines[i + 2] || ''
+      eventDate = lines[i + 3] || ''
+      oddsStr = lines[i + 4] || ''
+      stakeStr = lines[i + 5] || ''
+      profitStr = lines[i + 6] || ''
+      balanceStr = lines[i + 7] || ''
+      typeLine = lines[i + 8]?.toLowerCase() || ''
+    }
+    
+    // Check if this looks like a valid bet entry
     if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
       
       // SKIP PENDING BETS - we only want settled bets (win/loss)
