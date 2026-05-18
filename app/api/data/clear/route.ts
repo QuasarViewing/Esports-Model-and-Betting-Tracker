@@ -5,26 +5,22 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    console.log('[v0] Starting data clear...')
-
-    // Delete all bets - use a simple delete without filters
-    const { error: betsError, count: betsCount } = await supabase
+    // Delete all bets - use gt() with a date from the past to match all records
+    const { error: betsError } = await supabase
       .from('bets')
       .delete()
-      .not('id', 'is', null)
+      .gt('created_at', '1900-01-01')
 
     if (betsError) {
       console.error('[v0] Error deleting bets:', betsError)
       return NextResponse.json({ error: `Failed to delete bets: ${betsError.message}` }, { status: 500 })
     }
 
-    console.log('[v0] Deleted', betsCount, 'bets')
-
-    // Delete all transactions 
-    const { error: txError, count: txCount } = await supabase
+    // Delete all transactions - use gt() with a date from the past to match all records
+    const { error: txError } = await supabase
       .from('transactions')
       .delete()
-      .not('id', 'is', null)
+      .gt('created_at', '1900-01-01')
 
     if (txError) {
       console.error('[v0] Error deleting transactions:', txError)

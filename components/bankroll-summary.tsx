@@ -3,11 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Wallet, TrendingUp, TrendingDown, PiggyBank, ArrowUpCircle, ArrowDownCircle, BarChart3 } from 'lucide-react'
 import type { Transaction } from './transactions'
-import type { BettingStats } from '@/lib/parse-bets'
+import type { BetStats } from '@/lib/parse-bets'
 
 interface BankrollSummaryProps {
   transactions: Transaction[]
-  stats: BettingStats
+  stats: BetStats
   currentBalance?: number
 }
 

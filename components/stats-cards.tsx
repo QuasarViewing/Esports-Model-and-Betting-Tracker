@@ -1,11 +1,11 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import type { BettingStats } from '@/lib/parse-bets'
-import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Zap, Award, BarChart3, Clock, Flame } from 'lucide-react'
+import type { BetStats } from '@/lib/parse-bets'
+import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Award, BarChart3, Flame, Zap } from 'lucide-react'
 
 interface StatsCardsProps {
-  stats: BettingStats
+  stats: BetStats
   truePL?: number  // Override totalProfit with actual balance-based P/L
   detailed?: boolean
 }
@@ -77,7 +77,7 @@ export function StatsCards({ stats, truePL, detailed = false }: StatsCardsProps)
             </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {stats.totalWins}W - {stats.totalLosses}L of {stats.totalBets} bets
+            {stats.winCount}W - {stats.lossCount}L of {stats.totalBets} bets
           </p>
         </CardContent>
       </Card>
@@ -126,42 +126,22 @@ export function StatsCards({ stats, truePL, detailed = false }: StatsCardsProps)
         </CardContent>
       </Card>
 
-      {/* Biggest Win */}
+      {/* Pending Bets */}
       <Card className="stat-card group">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Biggest Win</p>
-              <p className="text-2xl font-bold font-mono text-chart-1">
-                +${stats.biggestWin.toFixed(2)}
+              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-2xl font-bold font-mono text-foreground">
+                {stats.pendingBets}
               </p>
             </div>
-            <div className="rounded-xl bg-chart-1/10 p-2.5 transition-all group-hover:scale-110">
-              <Award className="h-5 w-5 text-chart-1" />
+            <div className="rounded-xl bg-secondary p-2.5 transition-all group-hover:scale-110">
+              <Award className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Best single bet
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Biggest Loss */}
-      <Card className="stat-card group">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Biggest Loss</p>
-              <p className="text-2xl font-bold font-mono text-destructive">
-                -${stats.biggestLoss.toFixed(2)}
-              </p>
-            </div>
-            <div className="rounded-xl bg-destructive/10 p-2.5 transition-all group-hover:scale-110">
-              <TrendingDown className="h-5 w-5 text-destructive" />
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Worst single bet
+            ${stats.pendingStake.toFixed(2)} at risk
           </p>
         </CardContent>
       </Card>
