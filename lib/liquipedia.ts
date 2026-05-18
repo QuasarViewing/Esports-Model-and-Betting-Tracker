@@ -347,109 +347,34 @@ export async function getTournaments(game: GameType, status: 'upcoming' | 'ongoi
       limit: 20
     })
 
-    // If API returns data, use it
-    if (tournaments.length > 0) {
-      return tournaments.map((t: unknown) => {
-        const tournament = t as Record<string, string>
-        const startDate = tournament.StartDate || ''
-        const endDate = tournament.EndDate || ''
-        
-        let tournamentStatus: 'upcoming' | 'ongoing' | 'completed' = 'completed'
-        if (startDate > now) {
-          tournamentStatus = 'upcoming'
-        } else if (!endDate || endDate >= now) {
-          tournamentStatus = 'ongoing'
-        }
+    return tournaments.map((t: unknown) => {
+      const tournament = t as Record<string, string>
+      const startDate = tournament.StartDate || ''
+      const endDate = tournament.EndDate || ''
+      
+      let tournamentStatus: 'upcoming' | 'ongoing' | 'completed' = 'completed'
+      if (startDate > now) {
+        tournamentStatus = 'upcoming'
+      } else if (!endDate || endDate >= now) {
+        tournamentStatus = 'ongoing'
+      }
 
-        return {
-          name: tournament.Name || 'Unknown Tournament',
-          tier: tournament.Tier || 'Unknown',
-          startDate,
-          endDate: endDate || undefined,
-          prizePool: tournament.Prizepool || undefined,
-          location: tournament.Location || undefined,
-          status: tournamentStatus,
-          game,
-          liquipediaUrl: tournament.Liquipedia ? `https://liquipedia.net/${game}/${tournament.Liquipedia}` : undefined
-        }
-      })
-    }
-
-    // Fallback: Return known major tournaments for 2026 if API is empty
-    if (game === 'dota2') {
-      return getFallbackDota2Tournaments(status)
-    }
-
-    return []
+      return {
+        name: tournament.Name || 'Unknown Tournament',
+        tier: tournament.Tier || 'Unknown',
+        startDate,
+        endDate: endDate || undefined,
+        prizePool: tournament.Prizepool || undefined,
+        location: tournament.Location || undefined,
+        status: tournamentStatus,
+        game,
+        liquipediaUrl: tournament.Liquipedia ? `https://liquipedia.net/${game}/${tournament.Liquipedia}` : undefined
+      }
+    })
   } catch (error) {
     console.error(`[v0] Error fetching tournaments:`, error)
-    // Return fallback data on error
-    if (game === 'dota2') {
-      return getFallbackDota2Tournaments(status)
-    }
     return []
   }
-}
-
-// Fallback tournament data for Dota 2
-function getFallbackDota2Tournaments(status: 'upcoming' | 'ongoing' | 'all'): Tournament[] {
-  const now = new Date().toISOString().split('T')[0]
-  
-  const tournaments: Tournament[] = [
-    {
-      name: 'DreamLeague Season 25',
-      tier: 'S-Tier',
-      startDate: '2026-05-15',
-      endDate: '2026-05-25',
-      prizePool: '$1,000,000',
-      location: 'Stockholm, Sweden',
-      status: 'ongoing',
-      game: 'dota2',
-      liquipediaUrl: 'https://liquipedia.net/dota2/DreamLeague/Season_25'
-    },
-    {
-      name: 'ESL One Birmingham 2026',
-      tier: 'S-Tier',
-      startDate: '2026-06-01',
-      endDate: '2026-06-09',
-      prizePool: '$1,000,000',
-      location: 'Birmingham, UK',
-      status: 'upcoming',
-      game: 'dota2',
-      liquipediaUrl: 'https://liquipedia.net/dota2/ESL_One/Birmingham/2026'
-    },
-    {
-      name: 'The International 2026',
-      tier: 'S-Tier',
-      startDate: '2026-08-15',
-      endDate: '2026-08-31',
-      prizePool: '$15,000,000+',
-      location: 'TBD',
-      status: 'upcoming',
-      game: 'dota2',
-      liquipediaUrl: 'https://liquipedia.net/dota2/The_International/2026'
-    },
-    {
-      name: 'BetBoom Dacha Dubai 2026',
-      tier: 'A-Tier',
-      startDate: '2026-05-20',
-      endDate: '2026-05-26',
-      prizePool: '$500,000',
-      location: 'Dubai, UAE',
-      status: 'ongoing',
-      game: 'dota2',
-      liquipediaUrl: 'https://liquipedia.net/dota2/BetBoom/Dacha_Dubai/2026'
-    }
-  ]
-
-  // Filter by status
-  if (status === 'ongoing') {
-    return tournaments.filter(t => t.startDate <= now && (!t.endDate || t.endDate >= now))
-  } else if (status === 'upcoming') {
-    return tournaments.filter(t => t.startDate > now)
-  }
-  
-  return tournaments
 }
 
 // Get upcoming matches (schedule)
@@ -457,54 +382,27 @@ export async function getUpcomingMatches(game: GameType, limit: number = 20): Pr
   try {
     const now = new Date().toISOString()
     
-    // Try match2 table first (newer format)
-    let matches = await cargoQuery(game, {
-      tables: 'match2',
-      fields: 'match2opponent1,match2opponent2,date,tournament,bestof,stream',
-      where: `date > "${now.split('T')[0]}" AND match2opponent1 IS NOT NULL AND match2opponent2 IS NOT NULL`,
-      orderBy: 'date ASC',
+    const matches = await cargoQuery(game, {
+      tables: 'MatchSchedule',
+      fields: 'Team1,Team2,DateTime_UTC,Tournament,BestOf,Stream',
+      where: `DateTime_UTC > "${now}" AND Team1 IS NOT NULL AND Team2 IS NOT NULL`,
+      orderBy: 'DateTime_UTC ASC',
       limit
     })
-    
-    // If empty, try MatchSchedule as fallback
-    if (matches.length === 0) {
-      matches = await cargoQuery(game, {
-        tables: 'MatchSchedule',
-        fields: 'Team1,Team2,DateTime_UTC,Tournament,BestOf,Stream',
-        where: `DateTime_UTC > "${now}" AND Team1 IS NOT NULL AND Team2 IS NOT NULL`,
-        orderBy: 'DateTime_UTC ASC',
-        limit
-      })
-      
-      return matches.map((m: unknown) => {
-        const match = m as Record<string, string>
-        const dateTime = match.DateTime_UTC || ''
-        const [date, time] = dateTime.split(' ')
-        
-        return {
-          team1: match.Team1 || 'TBD',
-          team2: match.Team2 || 'TBD',
-          date: date || new Date().toISOString().split('T')[0],
-          time: time || undefined,
-          tournament: match.Tournament || 'Unknown Tournament',
-          bestOf: match.BestOf ? parseInt(match.BestOf) : undefined,
-          stream: match.Stream || undefined,
-          game
-        }
-      })
-    }
-    
-    // Parse match2 format
+
     return matches.map((m: unknown) => {
       const match = m as Record<string, string>
+      const dateTime = match.DateTime_UTC || ''
+      const [date, time] = dateTime.split(' ')
+      
       return {
-        team1: match.match2opponent1 || 'TBD',
-        team2: match.match2opponent2 || 'TBD',
-        date: match.date || new Date().toISOString().split('T')[0],
-        time: undefined,
-        tournament: match.tournament || 'Unknown Tournament',
-        bestOf: match.bestof ? parseInt(match.bestof) : undefined,
-        stream: match.stream || undefined,
+        team1: match.Team1 || 'TBD',
+        team2: match.Team2 || 'TBD',
+        date: date || new Date().toISOString().split('T')[0],
+        time: time || undefined,
+        tournament: match.Tournament || 'Unknown Tournament',
+        bestOf: match.BestOf ? parseInt(match.BestOf) : undefined,
+        stream: match.Stream || undefined,
         game
       }
     })

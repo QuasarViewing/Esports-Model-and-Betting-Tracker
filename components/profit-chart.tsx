@@ -6,10 +6,9 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface ProfitChartProps {
   profitByDay: { date: string; profit: number; cumulative: number }[]
-  truePL?: number // Actual profit based on balance, more accurate than cumulative bet sum
 }
 
-export function ProfitChart({ profitByDay, truePL }: ProfitChartProps) {
+export function ProfitChart({ profitByDay }: ProfitChartProps) {
   const data = profitByDay.map(d => ({
     ...d,
     displayDate: d.date.replace(/\/26$/, '').replace(/\//g, '/'),
@@ -28,15 +27,13 @@ export function ProfitChart({ profitByDay, truePL }: ProfitChartProps) {
     )
   }
 
-  // Use truePL for display if provided, otherwise use cumulative from bets
-  const displayProfit = truePL !== undefined ? truePL : (data[data.length - 1]?.cumulative || 0)
-  const latestCumulative = data[data.length - 1]?.cumulative || 0
+  const latestProfit = data[data.length - 1]?.cumulative || 0
   const minValue = Math.min(...data.map(d => d.cumulative), 0)
   const maxValue = Math.max(...data.map(d => d.cumulative), 0)
   const padding = Math.max(Math.abs(maxValue - minValue) * 0.1, 20)
   const yDomain = [Math.floor(minValue - padding), Math.ceil(maxValue + padding)]
 
-  const isPositive = displayProfit >= 0
+  const isPositive = latestProfit >= 0
   const gradientId = isPositive ? 'profitGradientGreen' : 'profitGradientRed'
   const strokeColor = isPositive ? 'oklch(0.72 0.16 155)' : 'oklch(0.6 0.22 25)'
   const gradientStartColor = isPositive ? 'oklch(0.72 0.16 155)' : 'oklch(0.6 0.22 25)'
@@ -51,7 +48,7 @@ export function ProfitChart({ profitByDay, truePL }: ProfitChartProps) {
           }`}>
             {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
             <span className="font-mono text-sm font-bold">
-              {isPositive ? '+' : ''}${displayProfit.toFixed(2)}
+              {isPositive ? '+' : ''}${latestProfit.toFixed(2)}
             </span>
           </div>
         </div>
