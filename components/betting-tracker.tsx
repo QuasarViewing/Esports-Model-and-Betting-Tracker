@@ -320,7 +320,7 @@ export function BettingTracker() {
               <>
                 <StatsCards stats={stats} truePL={truePL} />
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} totalProfit={stats.totalProfit} />
+                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} totalProfit={truePL} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
                 <BetsTable bets={allBets.slice(0, 10)} title="Recent Bets" />
@@ -488,7 +488,7 @@ and will be skipped if already imported.`}
               <>
                 <StatsCards stats={stats} truePL={truePL} detailed />
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} totalProfit={stats.totalProfit} />
+                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} totalProfit={truePL} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
                 
