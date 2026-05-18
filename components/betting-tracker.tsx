@@ -14,7 +14,8 @@ import { BetsTable } from './bets-table'
 import { ProfitChart } from './profit-chart'
 import { GameBreakdown } from './game-breakdown'
 import { ImportSummary } from './import-summary'
-import { ClipboardPaste, Trash2, Upload, Loader2, Gamepad2, Zap, BarChart3, History, TrendingUp, AlertCircle } from 'lucide-react'
+import { ClipboardPaste, Trash2, Upload, Loader2, Gamepad2, Zap, BarChart3, History, TrendingUp, AlertCircle, Search } from 'lucide-react'
+import { MatchResearch } from './match-research'
 
 export function BettingTracker() {
   const [rawInput, setRawInput] = useState('')
@@ -295,6 +296,10 @@ export function BettingTracker() {
               <TrendingUp className="h-4 w-4" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="research" className="gap-2 data-[state=active]:bg-card">
+              <Search className="h-4 w-4" />
+              Research
+            </TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -526,6 +531,11 @@ and will be skipped if already imported.`}
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Research Tab */}
+          <TabsContent value="research" className="space-y-6">
+            <MatchResearch />
           </TabsContent>
         </Tabs>
       </div>

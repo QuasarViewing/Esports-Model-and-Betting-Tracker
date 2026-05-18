@@ -12,14 +12,15 @@ const USER_AGENT = 'EsportsBetTracker/1.0 (contact@example.com)'
 
 export type GameType = 'dota2' | 'lol' | 'csgo' | 'valorant'
 
-export interface TeamInfo {
+export interface TeamInfoData {
   name: string
   shortName: string
   region: string
-  logo?: string
+  logoUrl?: string
   roster: PlayerInfo[]
   recentForm: string[] // W/L results
   winRate: number
+  liquipediaUrl?: string
   lastUpdated: Date
 }
 
@@ -102,7 +103,7 @@ async function fetchLiquipedia(game: GameType, params: Record<string, string>): 
 }
 
 // Fetch team info from Liquipedia
-export async function getTeamInfo(teamName: string, game: GameType): Promise<TeamInfo | null> {
+export async function getTeamInfo(teamName: string, game: GameType): Promise<TeamInfoData | null> {
   try {
     // Normalize team name for wiki page title
     const pageName = teamName.replace(/ /g, '_')
@@ -130,7 +131,7 @@ export async function getTeamInfo(teamName: string, game: GameType): Promise<Tea
 }
 
 // Parse team wikitext to extract structured data
-function parseTeamWikitext(wikitext: string, teamName: string, game: GameType): TeamInfo {
+function parseTeamWikitext(wikitext: string, teamName: string, game: GameType): TeamInfoData {
   const roster: PlayerInfo[] = []
   
   // Extract roster from {{TeamCard}} or similar templates
@@ -225,7 +226,7 @@ function parseMatchHistory(wikitext: string, teamName: string, game: GameType): 
 }
 
 // Get head-to-head record between two teams
-export async function getHeadToHead(team1: string, team2: string, game: GameType): Promise<HeadToHead> {
+export async function getHeadToHeadData(team1: string, team2: string, game: GameType): Promise<HeadToHead> {
   const [team1History, team2History] = await Promise.all([
     getTeamMatchHistory(team1, game, 50),
     getTeamMatchHistory(team2, game, 50)
@@ -379,5 +380,34 @@ export async function searchTeam(query: string, game: GameType): Promise<string[
   } catch (error) {
     console.error(`Error searching for ${query}:`, error)
     return []
+  }
+}
+
+// Class wrapper for API routes
+export class LiquipediaAPI {
+  private game: GameType
+
+  constructor(game: GameType) {
+    this.game = game
+  }
+
+  async getTeamInfo(teamName: string): Promise<TeamInfoData | null> {
+    return getTeamInfo(teamName, this.game)
+  }
+
+  async getRecentMatches(teamName: string, limit: number = 10): Promise<MatchResult[]> {
+    return getTeamMatchHistory(teamName, this.game, limit)
+  }
+
+  async getHeadToHead(team1: string, team2: string): Promise<HeadToHead> {
+    return getHeadToHeadData(team1, team2, this.game)
+  }
+
+  async getTournaments(status: 'upcoming' | 'ongoing' | 'all' = 'all'): Promise<Tournament[]> {
+    return getTournaments(this.game, status)
+  }
+
+  async search(query: string): Promise<string[]> {
+    return searchTeam(query, this.game)
   }
 }
