@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { LiquipediaAPI } from '@/lib/liquipedia'
+import { getTeamInfo } from '@/lib/pandascore'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -28,10 +28,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cached)
   }
 
-  // Fetch from Liquipedia
+  // Fetch from PandaScore
   try {
-    const api = new LiquipediaAPI(game)
-    const teamData = await api.getTeamInfo(teamName)
+    const teamData = await getTeamInfo(teamName, game)
 
     if (teamData) {
       // Upsert to cache
@@ -39,13 +38,13 @@ export async function GET(request: NextRequest) {
         .from('teams')
         .upsert({
           name: teamData.name,
-          short_name: teamData.shortName,
+          short_name: teamData.abbreviation,
           game,
           region: teamData.region,
-          logo_url: teamData.logoUrl,
-          win_rate: teamData.winRate,
-          recent_form: teamData.recentForm,
-          liquipedia_url: teamData.liquipediaUrl,
+          logo_url: teamData.image_url,
+          win_rate: teamData.win_rate,
+          recent_form: null,
+          liquipedia_url: null,
           last_updated: new Date().toISOString()
         }, { onConflict: 'name,game' })
         .select()
@@ -56,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
   } catch (error) {
-    console.error('Liquipedia API error:', error)
+    console.error('[v0] PandaScore team API error:', error)
     return NextResponse.json({ error: 'Failed to fetch team data' }, { status: 500 })
   }
 }

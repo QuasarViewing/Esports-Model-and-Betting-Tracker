@@ -166,3 +166,43 @@ export async function getTournamentsPandaScore(game: 'dota2' | 'lol' | 'csgo' | 
     return []
   }
 }
+
+// Get team information
+export async function getTeamInfo(teamName: string, game: 'dota2' | 'lol' | 'csgo' | 'valorant') {
+  try {
+    const gameMap: Record<string, string> = {
+      dota2: 'dota-2',
+      lol: 'league-of-legends',
+      csgo: 'counter-strike-2',
+      valorant: 'valorant'
+    }
+
+    const response = await pandascoreRequest('/teams', {
+      params: {
+        'search[name]': teamName,
+        'per_page': 10,
+        'page': 1
+      }
+    })
+
+    if (!Array.isArray(response) || response.length === 0) {
+      console.log(`[v0] Team ${teamName} not found in PandaScore`)
+      return null
+    }
+
+    // Find exact match or closest match
+    const team = response.find((t: any) => t.name.toLowerCase() === teamName.toLowerCase()) || response[0]
+
+    return {
+      name: team.name,
+      abbreviation: team.acronym || team.name.substring(0, 3).toUpperCase(),
+      region: team.region || 'International',
+      image_url: team.image_url,
+      win_rate: team.win_rate || 0,
+      id: team.id.toString()
+    }
+  } catch (error) {
+    console.log(`[v0] PandaScore team info fetch failed for ${teamName}`)
+    return null
+  }
+}
