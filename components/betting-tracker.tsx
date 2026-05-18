@@ -189,6 +189,35 @@ export function BettingTracker() {
   // This is more accurate than summing bet profits
   const truePL = currentBalance + totalWithdrawals - totalDeposits
 
+  // Calculate truePL by day based on transactions
+  const truePLByDayMap = new Map<string, { deposits: number; withdrawals: number }>()
+  allTransactions.forEach(tx => {
+    const day = tx.dateString
+    if (!truePLByDayMap.has(day)) {
+      truePLByDayMap.set(day, { deposits: 0, withdrawals: 0 })
+    }
+    const entry = truePLByDayMap.get(day)!
+    if (tx.type === 'deposit') {
+      entry.deposits += tx.amount
+    } else if (tx.type === 'withdrawal') {
+      entry.withdrawals += tx.amount
+    }
+  })
+
+  let cumulativeTruePL = 0
+  const truePLByDay = Array.from(truePLByDayMap.entries())
+    .sort((a, b) => {
+      const dateA = new Date(a[0].split('/').reverse().join('-'))
+      const dateB = new Date(b[0].split('/').reverse().join('-'))
+      return dateA.getTime() - dateB.getTime()
+    })
+    .map(([date, { deposits, withdrawals }]) => {
+      // Each day's balance change from transactions
+      const dayChange = deposits - withdrawals
+      cumulativeTruePL += dayChange
+      return { date, balance: dayChange, cumulative: cumulativeTruePL }
+    })
+
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
 
@@ -312,7 +341,7 @@ export function BettingTracker() {
               <>
                 <StatsCards stats={stats} truePL={truePL} />
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <ProfitChart profitByDay={stats.profitByDay} />
+                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
                 <BetsTable bets={allBets.slice(0, 10)} title="Recent Bets" />
@@ -480,7 +509,7 @@ and will be skipped if already imported.`}
               <>
                 <StatsCards stats={stats} truePL={truePL} detailed />
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <ProfitChart profitByDay={stats.profitByDay} />
+                  <ProfitChart profitByDay={stats.profitByDay} truePLByDay={truePLByDay} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
                 

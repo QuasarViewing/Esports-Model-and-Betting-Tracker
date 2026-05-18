@@ -49,7 +49,7 @@ export function TeamRecord({ teamName, game }: TeamRecordProps) {
     )
   }
 
-  if (!record) {
+  if (!record || !record.winRate) {
     return null
   }
 

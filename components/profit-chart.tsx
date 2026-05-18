@@ -6,10 +6,14 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface ProfitChartProps {
   profitByDay: { date: string; profit: number; cumulative: number }[]
+  truePLByDay?: { date: string; balance: number; cumulative: number }[]
 }
 
-export function ProfitChart({ profitByDay }: ProfitChartProps) {
-  const data = profitByDay.map(d => ({
+export function ProfitChart({ profitByDay, truePLByDay }: ProfitChartProps) {
+  // Use truePLByDay if available, otherwise use profitByDay
+  const sourceData = truePLByDay && truePLByDay.length > 0 ? truePLByDay : profitByDay
+  
+  const data = sourceData.map(d => ({
     ...d,
     displayDate: d.date.replace(/\/26$/, '').replace(/\//g, '/'),
   }))
