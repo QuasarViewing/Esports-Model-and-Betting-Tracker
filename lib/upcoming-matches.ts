@@ -14,14 +14,48 @@ export interface UpcomingMatch {
 }
 
 export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
-  // Dream League Season 29 - Upper Bracket Quarterfinals (May 19)
+  // Group Stage Matches (May 18 - Currently happening)
+  {
+    id: 'dl29-group-1',
+    team1: 'XG',
+    team2: 'PTime',
+    tournament: 'Dream League Season 29 - Group Stage',
+    date: '2026-05-18',
+    time: '04:13 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-group-2',
+    team1: 'XG/PTime Winner',
+    team2: 'Tundra',
+    tournament: 'Dream League Season 29 - Group Stage',
+    date: '2026-05-18',
+    time: '05:18 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-group-3',
+    team1: 'XG/PTime Loser',
+    team2: 'Tundra',
+    tournament: 'Dream League Season 29 - Group Stage',
+    date: '2026-05-18',
+    time: '06:23 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  // Upper Bracket Quarterfinals (May 19)
   {
     id: 'dl29-ubqf-1',
     team1: 'Team Falcons',
-    team2: 'Natus Vincere',
+    team2: 'TBD',
     tournament: 'Dream League Season 29 - Playoffs',
     date: '2026-05-19',
-    time: '10:00 UTC',
+    time: '1d 4h 13m UTC',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
@@ -32,7 +66,7 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     team2: 'BetBoom Team',
     tournament: 'Dream League Season 29 - Playoffs',
     date: '2026-05-19',
-    time: '13:30 UTC',
+    time: '1d 7h 43m UTC',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
@@ -43,7 +77,7 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     team2: 'Team Liquid',
     tournament: 'Dream League Season 29 - Playoffs',
     date: '2026-05-19',
-    time: '13:30 UTC',
+    time: 'May 19',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
@@ -54,42 +88,19 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     team2: 'Aurora Gaming',
     tournament: 'Dream League Season 29 - Playoffs',
     date: '2026-05-19',
-    time: '17:00 UTC',
+    time: 'May 19',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
   },
-  // Lower Bracket Round 1 (May 20)
-  {
-    id: 'dl29-lbr1-1',
-    team1: 'Virtus.pro',
-    team2: 'Vici Gaming',
-    tournament: 'Dream League Season 29 - Playoffs',
-    date: '2026-05-20',
-    time: '10:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  {
-    id: 'dl29-lbr1-2',
-    team1: 'GamerLegion',
-    team2: 'ex-HEROIC',
-    tournament: 'Dream League Season 29 - Playoffs',
-    date: '2026-05-20',
-    time: '13:30 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  // Upper Bracket Semifinals (May 21)
+  // Upper Bracket Semifinals (May 20-21)
   {
     id: 'dl29-ubsf-1',
     team1: 'TBD',
     team2: 'TBD',
     tournament: 'Dream League Season 29 - Playoffs',
-    date: '2026-05-21',
-    time: '13:30 UTC',
+    date: '2026-05-20',
+    time: 'TBD',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
@@ -99,20 +110,20 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     team1: 'TBD',
     team2: 'TBD',
     tournament: 'Dream League Season 29 - Playoffs',
-    date: '2026-05-21',
-    time: '17:00 UTC',
+    date: '2026-05-20',
+    time: 'TBD',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
   },
-  // Upper Bracket Final (May 23)
+  // Upper Bracket Final (May 22-23)
   {
     id: 'dl29-ubf',
     team1: 'TBD',
     team2: 'TBD',
     tournament: 'Dream League Season 29 - Playoffs',
-    date: '2026-05-23',
-    time: '13:30 UTC',
+    date: '2026-05-22',
+    time: 'TBD',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
@@ -122,9 +133,9 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     id: 'dl29-gf',
     team1: 'TBD',
     team2: 'TBD',
-    tournament: 'Dream League Season 29 - Playoffs',
+    tournament: 'Dream League Season 29 - Grand Final',
     date: '2026-05-24',
-    time: '14:00 UTC',
+    time: 'TBD',
     bestOf: 5,
     tier: 'tier-1',
     status: 'scheduled'
