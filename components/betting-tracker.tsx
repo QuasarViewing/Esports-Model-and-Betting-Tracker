@@ -145,9 +145,16 @@ export function BettingTracker() {
     .filter(t => t.type === 'withdrawal')
     .reduce((sum, t) => sum + Number(t.amount), 0)
   const netDeposited = totalDeposits - totalWithdrawals
-  const currentBalance = dbBets.length > 0 
-    ? Number(dbBets[0].balance_after) || 0 
-    : 0
+  
+  // Get the most recent balance from either bets or transactions (whichever is more recent)
+  const lastBetBalance = dbBets.length > 0 ? Number(dbBets[0].balance_after) || 0 : 0
+  const lastBetDate = dbBets.length > 0 ? new Date(dbBets[0].date + ' ' + (dbBets[0].time || '00:00')) : new Date(0)
+  
+  const lastTxBalance = dbTransactions.length > 0 ? Number(dbTransactions[0].balance_after) || 0 : 0
+  const lastTxDate = dbTransactions.length > 0 ? new Date(dbTransactions[0].date + ' ' + (dbTransactions[0].time || '00:00')) : new Date(0)
+  
+  // Use the balance from whichever event happened most recently
+  const currentBalance = lastTxDate > lastBetDate ? lastTxBalance : lastBetBalance
 
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
