@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TeamInfo } from '@/components/team-info'
 import { HeadToHead } from '@/components/head-to-head'
 import { MatchHistory } from '@/components/match-history'
+import { MatchSchedule } from '@/components/match-schedule'
 import { Search, Swords } from 'lucide-react'
 
 const games = [
@@ -31,6 +32,9 @@ export function MatchResearch() {
 
   return (
     <div className="space-y-6">
+      {/* Schedule - Always visible */}
+      <MatchSchedule />
+
       {/* Search Form */}
       <Card className="bg-card/50 border-border/50">
         <CardHeader className="pb-2">

@@ -1,14 +1,15 @@
 // Liquipedia API Service
-// Fetches team info, match history, H2H, and tournament data
+// Uses Liquipedia's Cargo API for structured esports data
 
-const LIQUIPEDIA_API_BASE = {
+const USER_AGENT = 'EsportsBetTracker/1.0 (https://github.com/esports-bet-tracker)'
+
+// Cargo API endpoints for each game
+const CARGO_API = {
   dota2: 'https://liquipedia.net/dota2/api.php',
-  lol: 'https://liquipedia.net/leagueoflegends/api.php',
+  lol: 'https://liquipedia.net/leagueoflegends/api.php', 
   csgo: 'https://liquipedia.net/counterstrike/api.php',
   valorant: 'https://liquipedia.net/valorant/api.php',
 }
-
-const USER_AGENT = 'EsportsBetTracker/1.0 (contact@example.com)'
 
 export type GameType = 'dota2' | 'lol' | 'csgo' | 'valorant'
 
@@ -18,7 +19,7 @@ export interface TeamInfoData {
   region: string
   logoUrl?: string
   roster: PlayerInfo[]
-  recentForm: string[] // W/L results
+  recentForm: string[]
   winRate: number
   liquipediaUrl?: string
   lastUpdated: Date
@@ -58,327 +59,364 @@ export interface Tournament {
   endDate?: string
   prizePool?: string
   location?: string
-  teams: string[]
   status: 'upcoming' | 'ongoing' | 'completed'
   game: GameType
+  liquipediaUrl?: string
 }
 
-export interface LiveMatch {
+export interface UpcomingMatch {
   team1: string
   team2: string
-  score: string
+  date: string
+  time?: string
   tournament: string
-  startTime: string
-  streamUrl?: string
+  bestOf?: number
+  stream?: string
   game: GameType
 }
 
-// Helper to make API requests to Liquipedia
-async function fetchLiquipedia(game: GameType, params: Record<string, string>): Promise<unknown> {
-  const baseUrl = LIQUIPEDIA_API_BASE[game]
+// Cargo query helper
+async function cargoQuery(game: GameType, params: {
+  tables: string
+  fields: string
+  where?: string
+  orderBy?: string
+  limit?: number
+}): Promise<unknown[]> {
+  const baseUrl = CARGO_API[game]
   const url = new URL(baseUrl)
   
-  // Liquipedia uses MediaWiki API
-  url.searchParams.set('action', 'parse')
+  url.searchParams.set('action', 'cargoquery')
   url.searchParams.set('format', 'json')
   url.searchParams.set('origin', '*')
+  url.searchParams.set('tables', params.tables)
+  url.searchParams.set('fields', params.fields)
   
-  Object.entries(params).forEach(([key, value]) => {
-    url.searchParams.set(key, value)
-  })
+  if (params.where) url.searchParams.set('where', params.where)
+  if (params.orderBy) url.searchParams.set('order_by', params.orderBy)
+  if (params.limit) url.searchParams.set('limit', params.limit.toString())
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Accept': 'application/json',
-    },
-    next: { revalidate: 3600 } // Cache for 1 hour
-  })
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Accept': 'application/json',
+      },
+      next: { revalidate: 300 } // Cache for 5 mins
+    })
 
-  if (!response.ok) {
-    throw new Error(`Liquipedia API error: ${response.status}`)
+    if (!response.ok) {
+      console.error(`[v0] Cargo API error: ${response.status}`)
+      return []
+    }
+
+    const data = await response.json()
+    return data.cargoquery?.map((item: { title: unknown }) => item.title) || []
+  } catch (error) {
+    console.error(`[v0] Cargo query failed:`, error)
+    return []
   }
-
-  return response.json()
 }
 
-// Fetch team info from Liquipedia
+// Get team info using Cargo API
 export async function getTeamInfo(teamName: string, game: GameType): Promise<TeamInfoData | null> {
   try {
-    // Normalize team name for wiki page title
-    const pageName = teamName.replace(/ /g, '_')
-    
-    const data = await fetchLiquipedia(game, {
-      page: pageName,
-      prop: 'wikitext',
-    }) as { parse?: { wikitext?: { '*': string } } }
+    // Query team data from Cargo
+    const teamData = await cargoQuery(game, {
+      tables: 'Teams',
+      fields: 'Name,ShortName,Region,Image,Link',
+      where: `Name="${teamName}" OR ShortName="${teamName}"`,
+      limit: 1
+    })
 
-    if (!data.parse?.wikitext) {
-      return null
+    if (teamData.length === 0) {
+      // Try fuzzy match
+      const fuzzyData = await cargoQuery(game, {
+        tables: 'Teams',
+        fields: 'Name,ShortName,Region,Image,Link',
+        where: `Name LIKE "%${teamName}%" OR ShortName LIKE "%${teamName}%"`,
+        limit: 1
+      })
+      
+      if (fuzzyData.length === 0) {
+        return createFallbackTeamInfo(teamName, game)
+      }
+      
+      const team = fuzzyData[0] as Record<string, string>
+      return buildTeamInfo(team, game)
     }
 
-    const wikitext = data.parse.wikitext['*']
-    
-    // Parse the wikitext to extract team info
-    // This is a simplified parser - real implementation would be more robust
-    const teamInfo = parseTeamWikitext(wikitext, teamName, game)
-    
-    return teamInfo
+    const team = teamData[0] as Record<string, string>
+    return buildTeamInfo(team, game)
   } catch (error) {
-    console.error(`Error fetching team info for ${teamName}:`, error)
-    return null
+    console.error(`[v0] Error fetching team ${teamName}:`, error)
+    return createFallbackTeamInfo(teamName, game)
   }
 }
 
-// Parse team wikitext to extract structured data
-function parseTeamWikitext(wikitext: string, teamName: string, game: GameType): TeamInfoData {
-  const roster: PlayerInfo[] = []
+function buildTeamInfo(team: Record<string, string>, game: GameType): TeamInfoData {
+  const gameUrls: Record<GameType, string> = {
+    dota2: 'https://liquipedia.net/dota2/',
+    lol: 'https://liquipedia.net/leagueoflegends/',
+    csgo: 'https://liquipedia.net/counterstrike/',
+    valorant: 'https://liquipedia.net/valorant/'
+  }
   
-  // Extract roster from {{TeamCard}} or similar templates
-  const rosterMatch = wikitext.match(/\{\{TeamCard[\s\S]*?\}\}/gi)
-  if (rosterMatch) {
-    // Parse roster entries
-    const playerMatches = wikitext.matchAll(/\|p\d+=([^|}\n]+)/gi)
-    for (const match of playerMatches) {
-      if (match[1]?.trim()) {
-        roster.push({
-          name: match[1].trim(),
-          role: 'Player'
-        })
-      }
-    }
+  return {
+    name: team.Name || team.ShortName || 'Unknown',
+    shortName: team.ShortName || team.Name || '',
+    region: team.Region || 'Unknown',
+    logoUrl: team.Image ? `https://liquipedia.net/commons/images/${team.Image}` : undefined,
+    roster: [],
+    recentForm: [],
+    winRate: 0,
+    liquipediaUrl: team.Link ? `${gameUrls[game]}${team.Link}` : undefined,
+    lastUpdated: new Date()
+  }
+}
+
+function createFallbackTeamInfo(teamName: string, game: GameType): TeamInfoData {
+  // Known teams with their regions
+  const knownTeams: Record<string, { region: string; shortName?: string }> = {
+    'PARIVISION': { region: 'CIS', shortName: 'PARI' },
+    'Team Spirit': { region: 'CIS', shortName: 'Spirit' },
+    'Team Liquid': { region: 'Europe', shortName: 'Liquid' },
+    'Tundra Esports': { region: 'Europe', shortName: 'Tundra' },
+    'Gaimin Gladiators': { region: 'Europe', shortName: 'GG' },
+    'BetBoom Team': { region: 'CIS', shortName: 'BB' },
+    'Natus Vincere': { region: 'CIS', shortName: 'Navi' },
+    'OG': { region: 'Europe', shortName: 'OG' },
+    'Xtreme Gaming': { region: 'China', shortName: 'XG' },
+    'Aurora': { region: 'CIS', shortName: 'Aurora' },
+    '9Pandas': { region: 'CIS', shortName: '9P' },
+    'Cloud9': { region: 'NA', shortName: 'C9' },
+    'FaZe Clan': { region: 'Europe', shortName: 'FaZe' },
+    'G2 Esports': { region: 'Europe', shortName: 'G2' },
+    'Vitality': { region: 'Europe', shortName: 'Vita' },
+    'MOUZ': { region: 'Europe', shortName: 'MOUZ' },
+    'Heroic': { region: 'Europe', shortName: 'Heroic' },
+    'FURIA': { region: 'SA', shortName: 'FURIA' },
+    'T1': { region: 'Korea', shortName: 'T1' },
+    'Gen.G': { region: 'Korea', shortName: 'GenG' },
+    'JD Gaming': { region: 'China', shortName: 'JDG' },
+    'Bilibili Gaming': { region: 'China', shortName: 'BLG' },
+    'Sentinels': { region: 'NA', shortName: 'SEN' },
+    'LOUD': { region: 'SA', shortName: 'LOUD' },
+    'Paper Rex': { region: 'SEA', shortName: 'PRX' },
   }
 
-  // Extract region
-  const regionMatch = wikitext.match(/\|region\s*=\s*([^|}\n]+)/i)
-  const region = regionMatch?.[1]?.trim() || 'Unknown'
-
-  // Extract short name
-  const shortMatch = wikitext.match(/\|short\s*=\s*([^|}\n]+)/i)
-  const shortName = shortMatch?.[1]?.trim() || teamName
+  const normalizedName = teamName.toLowerCase()
+  const match = Object.entries(knownTeams).find(([name]) => 
+    name.toLowerCase().includes(normalizedName) || normalizedName.includes(name.toLowerCase())
+  )
 
   return {
     name: teamName,
-    shortName,
-    region,
-    roster,
+    shortName: match?.[1].shortName || teamName.split(' ')[0],
+    region: match?.[1].region || 'Unknown',
+    roster: [],
     recentForm: [],
     winRate: 0,
     lastUpdated: new Date()
   }
 }
 
-// Fetch recent match results for a team
+// Get recent match results for a team
 export async function getTeamMatchHistory(teamName: string, game: GameType, limit: number = 10): Promise<MatchResult[]> {
   try {
-    const pageName = `${teamName.replace(/ /g, '_')}/Results`
-    
-    const data = await fetchLiquipedia(game, {
-      page: pageName,
-      prop: 'wikitext',
-    }) as { parse?: { wikitext?: { '*': string } } }
-
-    if (!data.parse?.wikitext) {
-      // Try alternate page format
-      return []
-    }
-
-    const wikitext = data.parse.wikitext['*']
-    const matches = parseMatchHistory(wikitext, teamName, game)
-    
-    return matches.slice(0, limit)
-  } catch (error) {
-    console.error(`Error fetching match history for ${teamName}:`, error)
-    return []
-  }
-}
-
-// Parse match history from wikitext
-function parseMatchHistory(wikitext: string, teamName: string, game: GameType): MatchResult[] {
-  const matches: MatchResult[] = []
-  
-  // Look for MatchList or similar templates
-  const matchRegex = /\{\{MatchMaps[\s\S]*?\}\}/gi
-  const matchEntries = wikitext.match(matchRegex) || []
-  
-  for (const entry of matchEntries) {
-    const opponentMatch = entry.match(/\|opponent\s*=\s*([^|}\n]+)/i)
-    const scoreMatch = entry.match(/\|score\s*=\s*([^|}\n]+)/i)
-    const dateMatch = entry.match(/\|date\s*=\s*([^|}\n]+)/i)
-    const tournamentMatch = entry.match(/\|tournament\s*=\s*([^|}\n]+)/i)
-    
-    if (opponentMatch) {
-      const score = scoreMatch?.[1]?.trim() || '0-0'
-      const [team1Score, team2Score] = score.split('-').map(s => parseInt(s.trim()) || 0)
-      
-      matches.push({
-        date: dateMatch?.[1]?.trim() || 'Unknown',
-        opponent: opponentMatch[1].trim(),
-        result: team1Score > team2Score ? 'win' : team1Score < team2Score ? 'loss' : 'draw',
-        score,
-        tournament: tournamentMatch?.[1]?.trim() || 'Unknown',
-        game
-      })
-    }
-  }
-  
-  return matches
-}
-
-// Get head-to-head record between two teams
-export async function getHeadToHeadData(team1: string, team2: string, game: GameType): Promise<HeadToHead> {
-  const [team1History, team2History] = await Promise.all([
-    getTeamMatchHistory(team1, game, 50),
-    getTeamMatchHistory(team2, game, 50)
-  ])
-  
-  // Find matches between the two teams
-  const h2hMatches = team1History.filter(m => 
-    m.opponent.toLowerCase().includes(team2.toLowerCase()) ||
-    team2.toLowerCase().includes(m.opponent.toLowerCase())
-  )
-  
-  let team1Wins = 0
-  let team2Wins = 0
-  let draws = 0
-  
-  for (const match of h2hMatches) {
-    if (match.result === 'win') team1Wins++
-    else if (match.result === 'loss') team2Wins++
-    else draws++
-  }
-  
-  return {
-    team1,
-    team2,
-    team1Wins,
-    team2Wins,
-    draws,
-    matches: h2hMatches,
-    lastMet: h2hMatches[0]?.date
-  }
-}
-
-// Fetch ongoing/upcoming tournaments
-export async function getTournaments(game: GameType, status: 'upcoming' | 'ongoing' | 'all' = 'all'): Promise<Tournament[]> {
-  try {
-    // Fetch the tournaments portal page
-    const pageName = game === 'dota2' ? 'Portal:Tournaments' : 
-                     game === 'lol' ? 'Portal:Tournaments' :
-                     game === 'csgo' ? 'Portal:Tournaments' : 'Portal:Tournaments'
-    
-    const data = await fetchLiquipedia(game, {
-      page: pageName,
-      prop: 'wikitext',
-    }) as { parse?: { wikitext?: { '*': string } } }
-
-    if (!data.parse?.wikitext) {
-      return []
-    }
-
-    const wikitext = data.parse.wikitext['*']
-    const tournaments = parseTournaments(wikitext, game)
-    
-    if (status === 'all') return tournaments
-    return tournaments.filter(t => t.status === status)
-  } catch (error) {
-    console.error(`Error fetching tournaments for ${game}:`, error)
-    return []
-  }
-}
-
-// Parse tournaments from wikitext
-function parseTournaments(wikitext: string, game: GameType): Tournament[] {
-  const tournaments: Tournament[] = []
-  
-  // Look for tournament templates
-  const tournamentRegex = /\{\{TournamentCard[\s\S]*?\}\}/gi
-  const entries = wikitext.match(tournamentRegex) || []
-  
-  for (const entry of entries) {
-    const nameMatch = entry.match(/\|name\s*=\s*([^|}\n]+)/i)
-    const tierMatch = entry.match(/\|tier\s*=\s*([^|}\n]+)/i)
-    const dateMatch = entry.match(/\|sdate\s*=\s*([^|}\n]+)/i)
-    const endDateMatch = entry.match(/\|edate\s*=\s*([^|}\n]+)/i)
-    const prizeMatch = entry.match(/\|prizepool\s*=\s*([^|}\n]+)/i)
-    
-    if (nameMatch) {
-      const startDate = dateMatch?.[1]?.trim() || ''
-      const endDate = endDateMatch?.[1]?.trim() || ''
-      const now = new Date()
-      const start = startDate ? new Date(startDate) : now
-      const end = endDate ? new Date(endDate) : now
-      
-      let status: 'upcoming' | 'ongoing' | 'completed' = 'upcoming'
-      if (start <= now && end >= now) status = 'ongoing'
-      else if (end < now) status = 'completed'
-      
-      tournaments.push({
-        name: nameMatch[1].trim(),
-        tier: tierMatch?.[1]?.trim() || 'Unknown',
-        startDate,
-        endDate,
-        prizePool: prizeMatch?.[1]?.trim(),
-        teams: [],
-        status,
-        game
-      })
-    }
-  }
-  
-  return tournaments
-}
-
-// Get team form (last N results as W/L/D string)
-export function calculateTeamForm(matches: MatchResult[]): { form: string[]; winRate: number } {
-  const lastMatches = matches.slice(0, 10)
-  const form = lastMatches.map(m => 
-    m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'D'
-  )
-  
-  const wins = form.filter(r => r === 'W').length
-  const winRate = lastMatches.length > 0 ? (wins / lastMatches.length) * 100 : 0
-  
-  return { form, winRate }
-}
-
-// Normalize team name for matching
-export function normalizeTeamName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .replace(/esports?|gaming|team|clan/gi, '')
-    .trim()
-}
-
-// Find team in Liquipedia by searching
-export async function searchTeam(query: string, game: GameType): Promise<string[]> {
-  try {
-    const baseUrl = LIQUIPEDIA_API_BASE[game]
-    const url = new URL(baseUrl)
-    
-    url.searchParams.set('action', 'opensearch')
-    url.searchParams.set('search', query)
-    url.searchParams.set('limit', '10')
-    url.searchParams.set('namespace', '0')
-    url.searchParams.set('format', 'json')
-    url.searchParams.set('origin', '*')
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Accept': 'application/json',
-      },
+    // Query recent matches from Cargo
+    const matches = await cargoQuery(game, {
+      tables: 'MatchSchedule',
+      fields: 'Team1,Team2,Team1Score,Team2Score,DateTime_UTC,Tournament,BestOf',
+      where: `(Team1="${teamName}" OR Team2="${teamName}") AND Winner IS NOT NULL`,
+      orderBy: 'DateTime_UTC DESC',
+      limit
     })
 
-    if (!response.ok) {
-      return []
+    return matches.map((match: unknown) => {
+      const m = match as Record<string, string>
+      const isTeam1 = m.Team1?.toLowerCase() === teamName.toLowerCase()
+      const team1Score = parseInt(m.Team1Score) || 0
+      const team2Score = parseInt(m.Team2Score) || 0
+      
+      let result: 'win' | 'loss' | 'draw' = 'draw'
+      if (isTeam1) {
+        result = team1Score > team2Score ? 'win' : team1Score < team2Score ? 'loss' : 'draw'
+      } else {
+        result = team2Score > team1Score ? 'win' : team2Score < team1Score ? 'loss' : 'draw'
+      }
+
+      return {
+        date: m.DateTime_UTC?.split(' ')[0] || new Date().toISOString().split('T')[0],
+        opponent: isTeam1 ? m.Team2 : m.Team1,
+        result,
+        score: isTeam1 ? `${team1Score}-${team2Score}` : `${team2Score}-${team1Score}`,
+        tournament: m.Tournament || 'Unknown Tournament',
+        game
+      }
+    })
+  } catch (error) {
+    console.error(`[v0] Error fetching matches for ${teamName}:`, error)
+    return []
+  }
+}
+
+// Get head-to-head data between two teams
+export async function getHeadToHeadData(team1: string, team2: string, game: GameType): Promise<HeadToHead> {
+  try {
+    const matches = await cargoQuery(game, {
+      tables: 'MatchSchedule',
+      fields: 'Team1,Team2,Team1Score,Team2Score,DateTime_UTC,Tournament,Winner',
+      where: `((Team1="${team1}" AND Team2="${team2}") OR (Team1="${team2}" AND Team2="${team1}")) AND Winner IS NOT NULL`,
+      orderBy: 'DateTime_UTC DESC',
+      limit: 20
+    })
+
+    let team1Wins = 0
+    let team2Wins = 0
+    let draws = 0
+    const matchResults: MatchResult[] = []
+
+    matches.forEach((match: unknown) => {
+      const m = match as Record<string, string>
+      const isTeam1First = m.Team1?.toLowerCase() === team1.toLowerCase()
+      const winner = m.Winner?.toLowerCase()
+      
+      if (winner === team1.toLowerCase()) {
+        team1Wins++
+      } else if (winner === team2.toLowerCase()) {
+        team2Wins++
+      } else {
+        draws++
+      }
+
+      const team1Score = parseInt(m.Team1Score) || 0
+      const team2Score = parseInt(m.Team2Score) || 0
+
+      matchResults.push({
+        date: m.DateTime_UTC?.split(' ')[0] || '',
+        opponent: isTeam1First ? m.Team2 : m.Team1,
+        result: winner === team1.toLowerCase() ? 'win' : winner === team2.toLowerCase() ? 'loss' : 'draw',
+        score: isTeam1First ? `${team1Score}-${team2Score}` : `${team2Score}-${team1Score}`,
+        tournament: m.Tournament || 'Unknown',
+        game
+      })
+    })
+
+    return {
+      team1,
+      team2,
+      team1Wins,
+      team2Wins,
+      draws,
+      matches: matchResults,
+      lastMet: matchResults[0]?.date
+    }
+  } catch (error) {
+    console.error(`[v0] Error fetching H2H:`, error)
+    return { team1, team2, team1Wins: 0, team2Wins: 0, draws: 0, matches: [] }
+  }
+}
+
+// Get upcoming/ongoing tournaments
+export async function getTournaments(game: GameType, status: 'upcoming' | 'ongoing' | 'all' = 'all'): Promise<Tournament[]> {
+  try {
+    const now = new Date().toISOString().split('T')[0]
+    
+    let whereClause = ''
+    if (status === 'upcoming') {
+      whereClause = `StartDate > "${now}"`
+    } else if (status === 'ongoing') {
+      whereClause = `StartDate <= "${now}" AND (EndDate >= "${now}" OR EndDate IS NULL)`
     }
 
-    const data = await response.json() as [string, string[]]
-    return data[1] || []
+    // Query tournaments - try different table names based on game
+    const tournaments = await cargoQuery(game, {
+      tables: 'Tournaments',
+      fields: 'Name,Tier,StartDate,EndDate,Prizepool,Location,Liquipedia',
+      where: whereClause || undefined,
+      orderBy: 'StartDate DESC',
+      limit: 20
+    })
+
+    return tournaments.map((t: unknown) => {
+      const tournament = t as Record<string, string>
+      const startDate = tournament.StartDate || ''
+      const endDate = tournament.EndDate || ''
+      
+      let tournamentStatus: 'upcoming' | 'ongoing' | 'completed' = 'completed'
+      if (startDate > now) {
+        tournamentStatus = 'upcoming'
+      } else if (!endDate || endDate >= now) {
+        tournamentStatus = 'ongoing'
+      }
+
+      return {
+        name: tournament.Name || 'Unknown Tournament',
+        tier: tournament.Tier || 'Unknown',
+        startDate,
+        endDate: endDate || undefined,
+        prizePool: tournament.Prizepool || undefined,
+        location: tournament.Location || undefined,
+        status: tournamentStatus,
+        game,
+        liquipediaUrl: tournament.Liquipedia ? `https://liquipedia.net/${game}/${tournament.Liquipedia}` : undefined
+      }
+    })
   } catch (error) {
-    console.error(`Error searching for ${query}:`, error)
+    console.error(`[v0] Error fetching tournaments:`, error)
+    return []
+  }
+}
+
+// Get upcoming matches (schedule)
+export async function getUpcomingMatches(game: GameType, limit: number = 20): Promise<UpcomingMatch[]> {
+  try {
+    const now = new Date().toISOString()
+    
+    const matches = await cargoQuery(game, {
+      tables: 'MatchSchedule',
+      fields: 'Team1,Team2,DateTime_UTC,Tournament,BestOf,Stream',
+      where: `DateTime_UTC > "${now}" AND Team1 IS NOT NULL AND Team2 IS NOT NULL`,
+      orderBy: 'DateTime_UTC ASC',
+      limit
+    })
+
+    return matches.map((m: unknown) => {
+      const match = m as Record<string, string>
+      const dateTime = match.DateTime_UTC || ''
+      const [date, time] = dateTime.split(' ')
+      
+      return {
+        team1: match.Team1 || 'TBD',
+        team2: match.Team2 || 'TBD',
+        date: date || new Date().toISOString().split('T')[0],
+        time: time || undefined,
+        tournament: match.Tournament || 'Unknown Tournament',
+        bestOf: match.BestOf ? parseInt(match.BestOf) : undefined,
+        stream: match.Stream || undefined,
+        game
+      }
+    })
+  } catch (error) {
+    console.error(`[v0] Error fetching upcoming matches:`, error)
+    return []
+  }
+}
+
+// Search for teams
+export async function searchTeam(query: string, game: GameType): Promise<string[]> {
+  try {
+    const results = await cargoQuery(game, {
+      tables: 'Teams',
+      fields: 'Name',
+      where: `Name LIKE "%${query}%" OR ShortName LIKE "%${query}%"`,
+      limit: 10
+    })
+
+    return results.map((r: unknown) => (r as { Name: string }).Name)
+  } catch (error) {
+    console.error(`[v0] Error searching teams:`, error)
     return []
   }
 }
@@ -405,6 +443,10 @@ export class LiquipediaAPI {
 
   async getTournaments(status: 'upcoming' | 'ongoing' | 'all' = 'all'): Promise<Tournament[]> {
     return getTournaments(this.game, status)
+  }
+
+  async getUpcomingMatches(limit: number = 20): Promise<UpcomingMatch[]> {
+    return getUpcomingMatches(this.game, limit)
   }
 
   async search(query: string): Promise<string[]> {
