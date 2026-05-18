@@ -450,9 +450,15 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         profitLoss = -stake  // Loss = negative stake
       } else if (typeLine === 'win') {
         actualType = 'win'
-        // For wins, calculate profit from odds: profit = stake * (odds - 1)
-        // This is more reliable than parsing the return field which can be inconsistent
-        profitLoss = stake * (odds - 1)
+        // For wins, use actual return from Tab data: profit = return - stake
+        // Tab shows total return (stake + profit) in the profit field
+        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        if (displayedValue > 0) {
+          profitLoss = displayedValue - stake  // Actual return - stake = profit
+        } else {
+          // Fallback to calculation if no return shown
+          profitLoss = stake * (odds - 1)
+        }
       } else if (typeLine === 'cashed out') {
         actualType = 'cashed_out'
         const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
