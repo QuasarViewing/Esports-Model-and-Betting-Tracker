@@ -189,25 +189,13 @@ export function BettingTracker() {
   // This is more accurate than summing bet profits
   const truePL = currentBalance + totalWithdrawals - totalDeposits
 
-  // Calculate cumulative balance by day including deposits, withdrawals, and betting P/L
-  // stats.profitByDay.cumulative = total profit from bets only
-  // We need: deposits - withdrawals + betting profit
-  const truePLByDay = stats.profitByDay.map((day) => {
-    // Get transaction changes for this day if any
-    const dayTransactions = dbTransactions.filter(tx => tx.date === day.date)
-    const dayDeposits = dayTransactions.filter(tx => tx.type === 'deposit').reduce((sum, tx) => sum + Number(tx.amount), 0)
-    const dayWithdrawals = dayTransactions.filter(tx => tx.type === 'withdrawal').reduce((sum, tx) => sum + Number(tx.amount), 0)
-    
-    // Balance = total deposits so far - total withdrawals so far + cumulative betting profit
-    // We need to track cumulative deposits/withdrawals
-    const cumulativeBalance = totalDeposits + day.cumulative - totalWithdrawals
-    
-    return { 
-      date: day.date, 
-      balance: cumulativeBalance, 
-      cumulative: cumulativeBalance 
-    }
-  })
+  // Use the cumulative profit data directly from stats
+  // stats.profitByDay.cumulative already has the correct total profit value
+  const truePLByDay = stats.profitByDay.map((day) => ({
+    date: day.date,
+    balance: day.cumulative,
+    cumulative: day.cumulative
+  }))
 
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
