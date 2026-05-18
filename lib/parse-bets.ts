@@ -128,6 +128,16 @@ function generateTxHash(date: string, time: string, type: string, amount: number
 function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
   const text = `${match} ${selection}`.toLowerCase()
   
+  // Check for Valorant-specific terms FIRST (rounds, under X.5)
+  // "under 7.5" or "over 7.5" with LOUD/100T/MIBR = Valorant
+  const hasRoundsBet = /under\s*\d+\.?\d*|over\s*\d+\.?\d*|rounds/i.test(selection)
+  const valorantOrgs = ['mibr', 'loud', '100 thieves', '100t']
+  const hasValorantOrg = valorantOrgs.some(org => text.includes(org))
+  
+  if (hasRoundsBet && hasValorantOrg) {
+    return 'valorant'
+  }
+  
   // Check for EXCLUSIVE Dota teams first
   for (const team of DOTA_ONLY_TEAMS) {
     if (text.includes(team.toLowerCase())) return 'dota2'
@@ -145,37 +155,38 @@ function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' 
     }
   }
   
-  // For teams that play both Dota and CS, we need context
-  // Check if the match involves any shared team
-  const hasSharedTeam = DOTA_CS_SHARED.some(team => text.includes(team.toLowerCase()))
+  // For teams that play both Dota and CS (BetBoom vs Navi)
+  // If BOTH teams are shared orgs, it's likely CS (more common for these matchups)
+  const sharedTeamsInMatch = DOTA_CS_SHARED.filter(team => text.includes(team.toLowerCase()))
   
-  if (hasSharedTeam) {
-    // If BOTH teams are shared orgs, look for other clues
-    // Check if the opponent is Dota-only or CS-only
+  if (sharedTeamsInMatch.length >= 2) {
+    // Both teams are shared orgs (e.g., BetBoom vs Navi)
+    // Check selection for game-specific bet types
+    if (selection.toLowerCase().includes('map') || selection.toLowerCase().includes('game')) {
+      // "Game 2 winner" style is common in CS
+      return 'csgo'
+    }
+    // Default to CS for these matchups
+    return 'csgo'
+  }
+  
+  if (sharedTeamsInMatch.length === 1) {
+    // One shared team - check if opponent is Dota-only or CS-only
     for (const team of DOTA_ONLY_TEAMS) {
       if (text.includes(team.toLowerCase())) return 'dota2'
     }
     for (const team of CSGO_ONLY_TEAMS) {
       if (text.includes(team.toLowerCase())) return 'csgo'
     }
-    // If we can't determine, check selection for game-specific bet types
-    if (selection.toLowerCase().includes('map') || selection.toLowerCase().includes('round')) {
-      return 'csgo' // CS uses maps/rounds terminology more
-    }
-    // Default to 'other' so user can correct it
+    // Default to 'other' so user can correct
     return 'other'
   }
   
-  // Teams that play BOTH Valorant and LoL - need context clues
-  const multiGameOrgs = ['mibr', 'loud', '100 thieves', '100t']
-  const isMultiGameOrg = multiGameOrgs.some(org => text.includes(org))
-  
-  if (isMultiGameOrg) {
-    // Check for Valorant-specific terms
-    if (text.includes('rounds') || text.includes('map')) return 'valorant'
+  // Teams that play BOTH Valorant and LoL 
+  if (hasValorantOrg) {
     // Check for LoL-specific terms  
     if (text.includes('dragon') || text.includes('baron') || text.includes('tower')) return 'lol'
-    // Default to Valorant for these orgs (they're more active in VCT currently)
+    // Default to Valorant for these orgs
     return 'valorant'
   }
   
@@ -236,10 +247,12 @@ function detectBetType(selection: string): 'winner' | 'game_winner' | 'handicap'
 }
 
 function parseDate(dateStr: string): Date {
-  const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})(\d{1,2}):(\d{2})(AM|PM)/i)
+  // Format: "18/05/2612:22PM" or "18/05/26 12:22PM"
+  const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i)
   if (match) {
     const [, day, month, year, hours, minutes, period] = match
     let h = parseInt(hours)
+    // Convert 12-hour to 24-hour format
     if (period.toUpperCase() === 'PM' && h !== 12) h += 12
     if (period.toUpperCase() === 'AM' && h === 12) h = 0
     return new Date(2000 + parseInt(year), parseInt(month) - 1, parseInt(day), h, parseInt(minutes))
@@ -248,7 +261,8 @@ function parseDate(dateStr: string): Date {
 }
 
 function parseDateString(dateStr: string): { datePart: string; timePart: string } {
-  const match = dateStr.match(/^([\d/]+)(\d{1,2}:\d{2}(?:AM|PM)?)$/i)
+  // Format: "18/05/2612:22PM" - date runs into time without space
+  const match = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{2})\s*(\d{1,2}:\d{2}\s*(?:AM|PM))$/i)
   if (match) {
     return { datePart: match[1], timePart: match[2] }
   }
