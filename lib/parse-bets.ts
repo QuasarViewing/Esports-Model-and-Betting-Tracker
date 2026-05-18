@@ -14,18 +14,15 @@ export interface ParsedBet {
   stake: number
   profitLoss: number
   balance: number
-  game: 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other'
+  game: 'dota2' | 'lol' | 'csgo' | 'valorant'
   tournament: string
   isLive: boolean
-  betType: 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other'
-  // Vig/Edge metrics
-  impliedProbability: number      // 1/odds as percentage
-  estimatedOpponentOdds: number   // Calculated using sport-specific vig
-  breakEvenWinRate: number        // Win rate needed to break even
-  noVigProbability: number        // Fair probability without bookmaker margin
-  vigAmount: number               // How much vig affects this bet
-  manualOpponentOdds?: number     // User can override
-  estimatedEdge?: number          // If user provides their probability estimate
+  betType: string
+  impliedProbability: number
+  estimatedOpponentOdds: number
+  breakEvenWinRate: number
+  noVigProbability: number
+  vigAmount: number
 }
 
 export interface ParsedTransaction {
@@ -39,310 +36,16 @@ export interface ParsedTransaction {
   balanceAfter: number
 }
 
-export interface ImportResult {
-  bets: ParsedBet[]
-  transactions: ParsedTransaction[]
-  duplicateBets: ParsedBet[]
-  duplicateTransactions: ParsedTransaction[]
-  newBets: ParsedBet[]
-  newTransactions: ParsedTransaction[]
-}
-
-export interface BettingStats {
-  totalBets: number
-  totalWins: number
-  totalLosses: number
-  pendingBets: number
-  winRate: number
-  totalStaked: number
-  totalProfit: number
-  roi: number
-  averageOdds: number
-  averageStake: number
-  biggestWin: number
-  biggestLoss: number
-  currentStreak: { type: 'win' | 'loss'; count: number }
-  profitByGame: Record<string, { profit: number; bets: number; wins: number }>
-  profitByDay: { date: string; profit: number; cumulative: number }[]
-  impliedProbabilityVsActual: number
-  pendingStake: number
-}
-
-const DOTA_TEAMS = [
-  'Tundra', 'Team Liquid', 'Team Falcons',
-  'Xtreme Gaming', 'PARIVISION', 'PlayTime', 'GamerLegion', 'Aurora',
-  'Virtus.pro', 'VP', 'Vici Gaming', 'FURIA', 'ex-HEROIC', 'REKONIX',
-  'Gaimin Gladiators', '9Pandas', 'OG', 'Quest', 'Entity', 'Nigma',
-  // Note: BetBoom, Navi, Spirit, Cloud9 play both Dota and CS - handled separately
-]
-
-// Teams that ONLY play Dota (for disambiguation)
-const DOTA_ONLY_TEAMS = [
-  'Tundra', 'Team Falcons', 'Xtreme Gaming', 'PARIVISION', 'PlayTime', 
-  'Aurora', 'Virtus.pro', 'VP', 'REKONIX', 'Gaimin Gladiators', '9Pandas', 
-  'OG', 'Quest', 'Entity', 'Nigma', 'ex-HEROIC'
-]
-
-// Teams that ONLY play CS (for disambiguation)  
-const CSGO_ONLY_TEAMS = [
-  'FaZe', 'Astralis', 'ENCE', 'Heroic', 'MOUZ', 'Complexity', 'BIG', 
-  'NIP', 'Ninjas in Pyjamas', 'Monte', 'Eternal Fire', 'SAW', 'Imperial', 'paiN'
-]
-
-// Multi-game orgs that play both Dota and CS
-const DOTA_CS_SHARED = ['Natus Vincere', 'Navi', 'BetBoom', 'Spirit', 'Team Spirit', 
-  'Cloud9', 'GamerLegion', 'FURIA', 'Liquid', 'Team Liquid', 'Vitality', 'G2']
-
-const LOL_TEAMS = [
-  'T1', 'Gen.G', 'DRX', 'KT Rolster', 'Hanwha Life', 'HLE', 'LOUD', '100 Thieves',
-  'Shopify Rebellion', 'Disguised', 'MIBR', 'JDG', 'Weibo', 'Top Esports', 'TES',
-  'Bilibili', 'LNG', 'NRG', 'Cloud9', 'FlyQuest', 'Fnatic', 'G2', 'MAD Lions',
-  'SK Gaming', 'Rogue', 'Team Vitality'
-]
-
-const LOL_REGION_TEAMS: Record<string, string[]> = {
-  'LCK': ['T1', 'Gen.G', 'DRX', 'KT Rolster', 'Hanwha Life', 'HLE', 'Dplus', 'Kwangdong Freecs', 'OK BRION', 'Nongshim'],
-  'LPL': ['JDG', 'Weibo', 'Top Esports', 'TES', 'Bilibili', 'LNG', 'Royal Never Give Up', 'EDward Gaming'],
-  'LEC': ['Fnatic', 'G2', 'MAD Lions', 'SK Gaming', 'Rogue', 'Team Vitality', 'Excel', 'Astralis'],
-  'LCS': ['100 Thieves', 'Cloud9', 'FlyQuest', 'NRG', 'Dignitas', 'Immortals', 'Team Liquid']
-}
-
-const CSGO_TEAMS = [
-  'Navi', 'Natus Vincere', 'FaZe', 'G2 Esports', 'Vitality', 'Astralis', 'ENCE', 
-  'Heroic', 'MOUZ', 'Complexity', 'BIG', 'NIP', 'Ninjas in Pyjamas',
-  'BetBoom', 'BetBoom Team', 'Spirit', 'Team Spirit', 'Monte', 'GamerLegion',
-  'Cloud9', 'Liquid', 'FURIA', 'paiN', 'Imperial', 'Eternal Fire', 'SAW'
-]
-
-const VALORANT_TEAMS = [
-  'MIBR', 'LOUD', 'Sentinels', 'NRG', '100 Thieves', '100T', 'Cloud9', 'C9',
-  'Evil Geniuses', 'EG', 'XSET', 'OpTic', 'The Guard', 'Version1', 'V1',
-  'Paper Rex', 'PRX', 'DRX', 'T1', 'Gen.G', 'Zeta Division', 'FNATIC', 'FNC',
-  'Team Liquid', 'TL', 'Natus Vincere', 'NAVI', 'FUT Esports', 'KRU', 'Leviatán',
-  'Team Heretics', 'Karmine Corp', 'KC', 'BBL Esports', 'EDward Gaming', 'EDG',
-  'Bilibili Gaming', 'Trace Esports', 'Talon Esports', 'Global Esports', 'GE'
-]
-
-// Sport-specific vig percentages based on Tab's actual margins
-const VIG_BY_GAME: Record<string, number> = {
-  'dota2': 7.5,
-  'lol': 7.5,
-  'csgo': 7.5,
-  'valorant': 8,
-  'other': 9
-}
-
-// Calculate vig metrics for a bet
-function calculateVigMetrics(odds: number, game: string = 'other'): {
-  impliedProbability: number
-  estimatedOpponentOdds: number
-  breakEvenWinRate: number
-  noVigProbability: number
-  vigAmount: number
-} {
-  const vigPercent = VIG_BY_GAME[game] || 9
-  
-  // Implied probability from odds (as percentage)
-  const impliedProbability = (1 / odds) * 100
-  
-  // Assuming market has X% vig, calculate opponent odds
-  // Total implied = 100% + vig
-  // Opponent implied = (100 + vig) - your implied
-  const totalImplied = 100 + vigPercent
-  const opponentImplied = totalImplied - impliedProbability
-  const estimatedOpponentOdds = opponentImplied > 0 ? 100 / opponentImplied : 1.01
-  
-  // No-vig (fair) probability - remove the margin proportionally
-  const noVigProbability = (impliedProbability / totalImplied) * 100
-  
-  // Break-even win rate accounting for vig
-  const breakEvenWinRate = impliedProbability
-  
-  // How much vig affects this specific bet (in %)
-  const vigAmount = impliedProbability - noVigProbability
-  
-  return { impliedProbability, estimatedOpponentOdds, breakEvenWinRate, noVigProbability, vigAmount }
-}
-
-function generateHash(date: string, time: string, match: string, odds: number, stake: number): string {
-  const str = `${date}|${time}|${match}|${odds}|${stake}`
-  return crypto.createHash('md5').update(str).digest('hex').substring(0, 16)
-}
-
-function generateTxHash(date: string, time: string, type: string, amount: number): string {
-  const str = `${date}|${time}|${type}|${amount}`
-  return crypto.createHash('md5').update(str).digest('hex').substring(0, 16)
-}
-
-function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
-  const text = `${match} ${selection}`.toLowerCase()
-  
-  // Check for Valorant-specific terms FIRST (rounds, under X.5)
-  // "under 7.5" or "over 7.5" with LOUD/100T/MIBR = Valorant
-  const hasRoundsBet = /under\s*\d+\.?\d*|over\s*\d+\.?\d*|rounds/i.test(selection)
-  const valorantOrgs = ['mibr', 'loud', '100 thieves', '100t']
-  const hasValorantOrg = valorantOrgs.some(org => text.includes(org))
-  
-  if (hasRoundsBet && hasValorantOrg) {
-    return 'valorant'
-  }
-  
-  // Check for EXCLUSIVE Dota teams first
-  for (const team of DOTA_ONLY_TEAMS) {
-    if (text.includes(team.toLowerCase())) return 'dota2'
-  }
-  
-  // Check for EXCLUSIVE CS teams
-  for (const team of CSGO_ONLY_TEAMS) {
-    if (text.includes(team.toLowerCase())) return 'csgo'
-  }
-  
-  // Check LoL regional league teams - these are exclusive to LoL
-  for (const [, teams] of Object.entries(LOL_REGION_TEAMS)) {
-    for (const team of teams) {
-      if (text.includes(team.toLowerCase())) return 'lol'
-    }
-  }
-  
-  // For teams that play both Dota and CS (BetBoom vs Navi)
-  // If BOTH teams are shared orgs, it's likely CS (more common for these matchups)
-  const sharedTeamsInMatch = DOTA_CS_SHARED.filter(team => text.includes(team.toLowerCase()))
-  
-  if (sharedTeamsInMatch.length >= 2) {
-    // Both teams are shared orgs (e.g., BetBoom vs Navi)
-    // Check selection for game-specific bet types
-    if (selection.toLowerCase().includes('map') || selection.toLowerCase().includes('game')) {
-      // "Game 2 winner" style is common in CS
-      return 'csgo'
-    }
-    // Default to CS for these matchups
-    return 'csgo'
-  }
-  
-  if (sharedTeamsInMatch.length === 1) {
-    // One shared team - check if opponent is Dota-only or CS-only
-    for (const team of DOTA_ONLY_TEAMS) {
-      if (text.includes(team.toLowerCase())) return 'dota2'
-    }
-    for (const team of CSGO_ONLY_TEAMS) {
-      if (text.includes(team.toLowerCase())) return 'csgo'
-    }
-    // Default to 'other' so user can correct
-    return 'other'
-  }
-  
-  // Teams that play BOTH Valorant and LoL 
-  if (hasValorantOrg) {
-    // Check for LoL-specific terms  
-    if (text.includes('dragon') || text.includes('baron') || text.includes('tower')) return 'lol'
-    // Default to Valorant for these orgs
-    return 'valorant'
-  }
-  
-  // Check Valorant-specific teams
-  const valorantOnlyTeams = ['sentinels', 'nrg', 'evil geniuses', 'eg', 'xset', 'optic', 
-    'the guard', 'version1', 'v1', 'paper rex', 'prx', 'zeta division', 'fut esports', 
-    'kru', 'leviatán', 'team heretics', 'karmine corp', 'kc', 'bbl esports', 
-    'trace esports', 'talon esports', 'global esports', 'ge']
-  
-  for (const team of valorantOnlyTeams) {
-    if (text.includes(team)) return 'valorant'
-  }
-  
-  // Check remaining LoL teams
-  for (const team of LOL_TEAMS) {
-    if (text.includes(team.toLowerCase())) return 'lol'
-  }
-  
-  return 'other'
-}
-
-function detectLoLRegion(match: string, selection: string): string | null {
-  const text = `${match} ${selection}`.toLowerCase()
-  
-  for (const [region, teams] of Object.entries(LOL_REGION_TEAMS)) {
-    for (const team of teams) {
-      if (text.includes(team.toLowerCase())) return region
-    }
-  }
-  return null
-}
-
-function detectTournament(match: string, selection: string, game: string): string {
-  const text = `${match} ${selection}`.toLowerCase()
-  
-  if (game === 'lol') {
-    const region = detectLoLRegion(match, selection)
-    if (region) return region
-  }
-  
-  if (text.includes('dreamleague')) return 'DreamLeague Season 29'
-  if (text.includes('blast')) return 'BLAST'
-  if (text.includes('ti') || text.includes('international')) return 'The International'
-  if (text.includes('esl')) return 'ESL'
-  if (text.includes('msi')) return 'MSI'
-  if (text.includes('worlds')) return 'Worlds'
-  
-  return game === 'dota2' ? 'DreamLeague Season 29' : 'Unknown'
-}
-
-function detectBetType(selection: string): 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other' {
-  const lower = selection.toLowerCase()
-  if (lower.includes('handicap') || /[+-]\d+\.?\d*/.test(lower)) return 'handicap'
-  if (lower.includes('over') || lower.includes('under')) return 'over_under'
-  if (lower.includes('game') && lower.includes('winner')) return 'game_winner'
-  if (lower.includes('winner') || lower.includes('2-way')) return 'winner'
-  return 'winner'
-}
-
-function parseDate(dateStr: string): Date {
-  // Format: "18/05/2612:22PM" or "18/05/26 12:22PM"
-  const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-  if (match) {
-    const [, day, month, year, hours, minutes, period] = match
-    let h = parseInt(hours)
-    // Convert 12-hour to 24-hour format
-    if (period.toUpperCase() === 'PM' && h !== 12) h += 12
-    if (period.toUpperCase() === 'AM' && h === 12) h = 0
-    return new Date(2000 + parseInt(year), parseInt(month) - 1, parseInt(day), h, parseInt(minutes))
-  }
-  return new Date()
-}
-
-function parseDateString(dateStr: string): { datePart: string; timePart: string } {
-  // Format: "18/05/2612:22PM" - date runs directly into time without space
-  // The date is DD/MM/YY (8 chars) and time is H:MMAM/PM or HH:MMAM/PM
-  
-  // Try to extract date (first 8 chars for DD/MM/YY format)
-  const dateMatch = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{2})/)
-  if (dateMatch) {
-    const datePart = dateMatch[1]
-    const rest = dateStr.slice(datePart.length).trim()
-    // Rest should be time like "12:22PM" or "9:45AM"
-    const timeMatch = rest.match(/^(\d{1,2}:\d{2}\s*(?:AM|PM))$/i)
-    if (timeMatch) {
-      return { datePart, timePart: timeMatch[1] }
-    }
-    // If no proper time found, return what we have
-    return { datePart, timePart: rest || '' }
-  }
-  return { datePart: dateStr, timePart: '' }
-}
-
 export function parseBettingData(rawText: string): { bets: ParsedBet[]; transactions: ParsedTransaction[] } {
   const lines = rawText.trim().split('\n').map(l => l.trim()).filter(l => l)
   const bets: ParsedBet[] = []
   const transactions: ParsedTransaction[] = []
   
-  // Track seen bets by their unique signature to handle the duplicate pending/settled issue
-  const seenBets = new Map<string, ParsedBet>()
-  
-  // Check if data is tab-separated (new format) or old line-based format
-  const isTabSeparated = lines[0]?.includes('\t')
+  // Detect format: tab-separated has \t, line-based has many lines per entry
+  const isTabSeparated = lines.some(line => line.includes('\t'))
   
   if (isTabSeparated) {
-    // New tab-separated format from betting site export
-    // Headers: STATUS | DATE | TIME | TYPE | Bet Details | Odds | Stake | Amount | Balance
+    // Tab-separated format from betting site export
     let i = 0
     while (i < lines.length) {
       const line = lines[i]
@@ -361,22 +64,21 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         continue
       }
       
-      // Combine date and time
       const fullDateTime = `${dateStr}${timeStr.replace(/\s/g, '')}`
       
-      // Handle transactions (deposits/withdrawals)
+      // Handle transactions
       if (status.toLowerCase() === 'withdraw') {
-        const amount = parseFloat(amountStr.replace(/[$-]/g, '')) || 0
+        const amount = Math.abs(parseFloat(amountStr.replace(/[$-]/g, '')) || 0)
         const balance = parseFloat(balanceStr.replace(/[$-]/g, '')) || 0
         
         const tx: ParsedTransaction = {
           id: crypto.randomUUID(),
-          hash: crypto.createHash('sha256').update(`withdrawal-${fullDateTime}-${Math.abs(amount)}`).digest('hex'),
+          hash: crypto.createHash('sha256').update(`withdrawal-${fullDateTime}-${amount}`).digest('hex'),
           type: 'withdrawal',
           date: parseDate(fullDateTime),
           dateString: dateStr,
           timeString: timeStr,
-          amount: Math.abs(amount),
+          amount,
           balanceAfter: balance
         }
         transactions.push(tx)
@@ -412,172 +114,149 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         const selection = type
         const game = detectGame(match, selection)
         
-        const bet: ParsedBet = {
-          id: crypto.randomUUID(),
-          hash: crypto.createHash('sha256').update(`${fullDateTime}-${match}-${selection}-${stake}`).digest('hex'),
-          type: betType,
-          date: parseDate(fullDateTime),
-          dateString: dateStr,
-          timeString: timeStr,
-          match,
-          selection,
-          eventDate: '',
-          odds: odds || 1,
-          stake,
-          profitLoss: profitAmount,
-          balance,
-          game,
-          tournament: detectTournament(match, selection, game),
-          isLive: false,
-          betType: detectBetType(selection),
-          impliedProbability: odds > 0 ? (1 / odds) * 100 : 0,
-          estimatedOpponentOdds: odds > 0 ? (1 / ((1 / odds) - 0.05)) : 0,
-          breakEvenWinRate: odds > 0 ? (1 / odds) * 100 : 0,
-          noVigProbability: 0,
-          vigAmount: 0
-        }
-        
-        bets.push(bet)
-      }
-      
-      i++
-    }
-  } else {
-    // Original line-based format (keep existing logic)
-    let i = 0
-    while (i < lines.length) {
-      const typeLine = lines[i]?.toLowerCase()
-      
-      if (!typeLine) {
-        i++
-        continue
-      }
-      
-      // Detect entry type
-    if (typeLine === 'withdraw' || typeLine === 'deposit') {
-      // Transaction format (8 lines): type, date+time, "Withdrawal/Deposit", status, -, display_amount, actual_amount, balance
-      const dateStr = lines[i + 1] || ''
-      const { datePart, timePart } = parseDateString(dateStr)
-      
-      // Amount is at index 6 (e.g., "-$60.00" or "$500.00")
-      const amountStr = lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'
-      const amount = Math.abs(parseFloat(amountStr))
-      const balanceAfter = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      const hash = generateTxHash(datePart, timePart, typeLine, amount)
-      
-      transactions.push({
-        id: `tx-${Date.now()}-${i}`,
-        hash,
-        type: typeLine === 'withdraw' ? 'withdrawal' : 'deposit',
-        date: parseDate(dateStr),
-        dateString: datePart,
-        timeString: timePart,
-        amount,
-        balanceAfter
-      })
-      
-      i += 8
-    } else if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
-      // Bet format (9 lines): type, date+time, match, selection, eventDate, odds, stake, profit, balance
-      const dateStr = lines[i + 1] || ''
-      const { datePart, timePart } = parseDateString(dateStr)
-      const match = lines[i + 2] || ''
-      const selection = lines[i + 3] || ''
-      const eventDate = lines[i + 4] || ''
-      const odds = parseFloat(lines[i + 5] || '0')
-      const stake = Math.abs(parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'))
-      const profitStr = lines[i + 7]?.trim() || '-'
-      const balance = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      // KEY FIX: Determine actual status from profit field, not just the type line
-      // If profit shows "-" it's pending, if it shows a number it's settled
-      // For losses, Tab shows "$0.00" as profit (you won nothing), but actual loss = -stake
-      let actualType: ParsedBet['type']
-      let profitLoss = 0
-      
-      if (profitStr === '-' || profitStr === '') {
-        actualType = 'pending'
-        profitLoss = 0
-      } else {
-        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
-        
-        // Tab shows losses as "$0.00" or "-$0.00" (you won nothing)
-        // Tab shows wins as TOTAL RETURN (stake × odds), not actual profit
-        if (typeLine === 'loss') {
-          actualType = 'loss'
-          profitLoss = -stake  // Loss = negative stake
-        } else if (typeLine === 'cashed out') {
-          actualType = 'cashed_out'
-          // For cashed out, displayed value might be partial return
-          profitLoss = displayedValue - stake
-        } else if (typeLine === 'win' || displayedValue > 0) {
-          actualType = 'win'
-          // Tab shows total return, actual profit = return - stake
-          profitLoss = displayedValue - stake
-        } else {
-          // If displayedValue <= 0 and not explicitly a win, it's a loss
-          actualType = 'loss'
-          profitLoss = -stake
-        }
-      }
-      
-      if (match && odds > 0 && stake > 0) {
-        const game = detectGame(match, selection)
-        const hash = generateHash(datePart, timePart, match, odds, stake)
-        const vigMetrics = calculateVigMetrics(odds, game)
-        
-        // Create bet signature for deduplication (same bet placed)
-        const betSignature = `${match}|${selection}|${odds}|${stake}`
-        
-        const bet: ParsedBet = {
-          id: `bet-${Date.now()}-${i}`,
-          hash,
-          type: actualType,
-          date: parseDate(dateStr),
-          dateString: datePart,
-          timeString: timePart,
-          match,
-          selection,
-          eventDate,
-          odds,
-          stake,
-          profitLoss,
-          balance,
-          game,
-          tournament: detectTournament(match, selection, game),
-          isLive: match.toLowerCase().includes('live'),
-          betType: detectBetType(selection),
-          // Vig metrics
-          impliedProbability: vigMetrics.impliedProbability,
-          estimatedOpponentOdds: vigMetrics.estimatedOpponentOdds,
-          breakEvenWinRate: vigMetrics.breakEvenWinRate,
-          noVigProbability: vigMetrics.noVigProbability,
-          vigAmount: vigMetrics.vigAmount
-        }
-        
-        // If we've seen this bet before, keep the settled version
-        const existing = seenBets.get(betSignature)
-        if (existing) {
-          // If new one is settled and old one is pending, replace
-          if (actualType !== 'pending' && existing.type === 'pending') {
-            seenBets.set(betSignature, bet)
+        if (match && odds > 0 && stake > 0) {
+          const bet: ParsedBet = {
+            id: crypto.randomUUID(),
+            hash: crypto.createHash('sha256').update(`${fullDateTime}-${match}-${selection}-${stake}`).digest('hex'),
+            type: betType,
+            date: parseDate(fullDateTime),
+            dateString: dateStr,
+            timeString: timeStr,
+            match,
+            selection,
+            eventDate: '',
+            odds: odds || 1,
+            stake,
+            profitLoss: profitAmount,
+            balance,
+            game,
+            tournament: detectTournament(match, selection, game),
+            isLive: false,
+            betType: detectBetType(selection),
+            impliedProbability: odds > 0 ? (1 / odds) * 100 : 0,
+            estimatedOpponentOdds: odds > 0 ? (1 / ((1 / odds) - 0.05)) : 0,
+            breakEvenWinRate: odds > 0 ? (1 / odds) * 100 : 0,
+            noVigProbability: 0,
+            vigAmount: 0
           }
-          // Otherwise keep the existing (already settled or both pending)
-        } else {
-          seenBets.set(betSignature, bet)
+          bets.push(bet)
         }
       }
       
-      i += 9
-    } else {
       i++
     }
   }
   
+  return { bets, transactions }
+}
+
+function parseDate(dateString: string): Date {
+  // Format: "18/05/2612:22PM" or "18/05/26 12:22PM"
+  const sanitized = dateString.replace(/\s/g, '')
+  
+  // Extract date and time parts
+  const dateMatch = sanitized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})(.*)$/)
+  if (!dateMatch) return new Date()
+  
+  const [, day, month, year, timeStr] = dateMatch
+  const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})(AM|PM)?/i)
+  
+  let hours = timeMatch ? parseInt(timeMatch[1]) : 0
+  const minutes = timeMatch ? parseInt(timeMatch[2]) : 0
+  const period = timeMatch ? timeMatch[3]?.toUpperCase() : 'AM'
+  
+  // Convert to 24-hour format
+  if (period === 'PM' && hours !== 12) hours += 12
+  if (period === 'AM' && hours === 12) hours = 0
+  
+  const fullYear = 2000 + parseInt(year)
+  return new Date(fullYear, parseInt(month) - 1, parseInt(day), hours, minutes)
+}
+
+function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' {
+  const text = `${match} ${selection}`.toLowerCase()
+  
+  if (text.includes('dota') || text.includes('spirits') || text.includes('tundra') || text.includes('falcons') || text.includes('liquid') || text.includes('natus')) return 'dota2'
+  if (text.includes('lol') || text.includes('league') || text.includes('100 thieves') || text.includes('loud')) return 'lol'
+  if (text.includes('cs') || text.includes('counter-strike') || text.includes('furia') || text.includes('heroic')) return 'csgo'
+  if (text.includes('valorant') || text.includes('faze') || text.includes('gen.g')) return 'valorant'
+  
+  return 'dota2' // Default to dota2
+}
+
+function detectTournament(match: string, selection: string, game: string): string {
+  // Extract tournament name from match if available
+  return 'Tournament'
+}
+
+function detectBetType(selection: string): string {
+  const text = selection.toLowerCase()
+  
+  if (text.includes('over') || text.includes('under')) return 'over/under'
+  if (text.includes('handicap')) return 'handicap'
+  if (text.includes('game')) return 'game_winner'
+  if (text.includes('map')) return 'map_winner'
+  if (text.includes('round')) return 'round_winner'
+  
+  return 'match_winner'
+}
+
+export function calculateStats(bets: ParsedBet[]) {
+  const settledBets = bets.filter(b => b.type !== 'pending')
+  
+  const totalBets = bets.length
+  const totalWins = bets.filter(b => b.type === 'win').length
+  const totalLosses = bets.filter(b => b.type === 'loss').length
+  const totalStaked = bets.reduce((sum, b) => sum + b.stake, 0)
+  const totalProfit = bets.reduce((sum, b) => sum + b.profitLoss, 0)
+  
+  const winRate = totalBets > 0 ? (totalWins / totalBets) * 100 : 0
+  const roi = totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0
+  const avgOdds = totalBets > 0 ? bets.reduce((sum, b) => sum + b.odds, 0) / totalBets : 0
+  const avgStake = totalBets > 0 ? totalStaked / totalBets : 0
+  
+  // Group by game
+  const profitByGame: Record<string, number> = {}
+  bets.forEach(bet => {
+    if (!profitByGame[bet.game]) profitByGame[bet.game] = 0
+    profitByGame[bet.game] += bet.profitLoss
+  })
+  
+  // Group by day
+  const profitByDayMap = new Map<string, { profit: number; count: number }>()
+  bets.forEach(bet => {
+    const day = bet.dateString
+    if (!profitByDayMap.has(day)) profitByDayMap.set(day, { profit: 0, count: 0 })
+    const entry = profitByDayMap.get(day)!
+    entry.profit += bet.profitLoss
+    entry.count += 1
+  })
+  
+  // Convert to sorted array with cumulative
+  let cumulativeProfit = 0
+  const profitByDay = Array.from(profitByDayMap.entries())
+    .sort((a, b) => {
+      const dateA = new Date(a[0].split('/').reverse().join('-'))
+      const dateB = new Date(b[0].split('/').reverse().join('-'))
+      return dateA.getTime() - dateB.getTime()
+    })
+    .map(([date, { profit, count }]) => {
+      cumulativeProfit += profit
+      return { date, profit, cumulative: cumulativeProfit }
+    })
+  
   return {
-    bets: Array.from(seenBets.values()).sort((a, b) => a.date.getTime() - b.date.getTime()),
-    transactions: transactions.sort((a, b) => a.date.getTime() - b.date.getTime())
+    totalBets,
+    totalWins,
+    totalLosses,
+    winRate,
+    totalStaked,
+    totalProfit,
+    roi,
+    avgOdds,
+    avgStake,
+    profitByGame,
+    profitByDay
   }
 }
 
@@ -585,135 +264,26 @@ export function checkDuplicates(
   newBets: ParsedBet[],
   newTransactions: ParsedTransaction[],
   existingHashes: Set<string>,
-  existingTxHashes: Set<string>
-): ImportResult {
-  const duplicateBets: ParsedBet[] = []
-  const uniqueBets: ParsedBet[] = []
-  const duplicateTransactions: ParsedTransaction[] = []
-  const uniqueTransactions: ParsedTransaction[] = []
+): { uniqueBets: ParsedBet[]; uniqueTransactions: ParsedTransaction[]; duplicateCount: number } {
+  let duplicateCount = 0
   
-  for (const bet of newBets) {
+  const uniqueBets = newBets.filter(bet => {
     if (existingHashes.has(bet.hash)) {
-      duplicateBets.push(bet)
-    } else {
-      uniqueBets.push(bet)
+      duplicateCount++
+      return false
     }
-  }
-  
-  for (const tx of newTransactions) {
-    if (existingTxHashes.has(tx.hash)) {
-      duplicateTransactions.push(tx)
-    } else {
-      uniqueTransactions.push(tx)
-    }
-  }
-  
-  return {
-    bets: newBets,
-    transactions: newTransactions,
-    duplicateBets,
-    duplicateTransactions,
-    newBets: uniqueBets,
-    newTransactions: uniqueTransactions
-  }
-}
-
-export function calculateStats(bets: ParsedBet[]): BettingStats {
-  const settledBets = bets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
-  const pendingBets = bets.filter(b => b.type === 'pending')
-  const wins = settledBets.filter(b => b.type === 'win' || (b.type === 'cashed_out' && b.profitLoss > 0))
-  const losses = settledBets.filter(b => b.type === 'loss')
-  
-  const totalStaked = settledBets.reduce((sum, b) => sum + b.stake, 0)
-  const pendingStake = pendingBets.reduce((sum, b) => sum + b.stake, 0)
-  
-  // Calculate total profit
-  const totalProfit = settledBets.reduce((sum, b) => {
-    if (b.type === 'win') return sum + b.profitLoss
-    if (b.type === 'cashed_out') return sum + b.profitLoss
-    if (b.type === 'loss') return sum + b.profitLoss // profitLoss is negative for losses
-    return sum
-  }, 0)
-  
-  const avgOdds = settledBets.length > 0
-    ? settledBets.reduce((sum, b) => sum + b.odds, 0) / settledBets.length
-    : 0
-  
-  // Calculate profit by game
-  const profitByGame: Record<string, { profit: number; bets: number; wins: number }> = {}
-  settledBets.forEach(b => {
-    if (!profitByGame[b.game]) profitByGame[b.game] = { profit: 0, bets: 0, wins: 0 }
-    profitByGame[b.game].bets++
-    profitByGame[b.game].profit += b.profitLoss
-    if (b.type === 'win' || (b.type === 'cashed_out' && b.profitLoss > 0)) {
-      profitByGame[b.game].wins++
-    }
+    existingHashes.add(bet.hash)
+    return true
   })
   
-  // Calculate profit by day
-  const profitByDayMap = new Map<string, number>()
-  settledBets.forEach(b => {
-    const day = b.dateString
-    if (!profitByDayMap.has(day)) profitByDayMap.set(day, 0)
-    profitByDayMap.set(day, profitByDayMap.get(day)! + b.profitLoss)
+  const uniqueTransactions = newTransactions.filter(tx => {
+    if (existingHashes.has(tx.hash)) {
+      duplicateCount++
+      return false
+    }
+    existingHashes.add(tx.hash)
+    return true
   })
   
-  let cumulative = 0
-  const profitByDay = Array.from(profitByDayMap.entries())
-    .sort((a, b) => {
-      const dateA = new Date(a[0].split('/').reverse().join('-'))
-      const dateB = new Date(b[0].split('/').reverse().join('-'))
-      return dateA.getTime() - dateB.getTime()
-    })
-    .map(([date, profit]) => {
-      cumulative += profit
-      return { date, profit, cumulative }
-    })
-  
-  // Current streak
-  let streakType: 'win' | 'loss' = 'win'
-  let streakCount = 0
-  const sortedSettled = [...settledBets].sort((a, b) => b.date.getTime() - a.date.getTime())
-  for (let i = 0; i < sortedSettled.length; i++) {
-    const bet = sortedSettled[i]
-    const isWin = bet.type === 'win' || (bet.type === 'cashed_out' && bet.profitLoss > 0)
-    if (i === 0) {
-      streakType = isWin ? 'win' : 'loss'
-      streakCount = 1
-    } else if ((isWin && streakType === 'win') || (!isWin && streakType === 'loss')) {
-      streakCount++
-    } else {
-      break
-    }
-  }
-  
-  // Biggest win/loss
-  const biggestWin = Math.max(...wins.map(b => b.profitLoss), 0)
-  const biggestLoss = Math.abs(Math.min(...losses.map(b => b.profitLoss), 0))
-  
-  // Implied probability vs actual
-  const impliedProb = settledBets.length > 0
-    ? settledBets.reduce((sum, b) => sum + (1 / b.odds), 0) / settledBets.length
-    : 0
-  const actualWinRate = settledBets.length > 0 ? wins.length / settledBets.length : 0
-  
-  return {
-    totalBets: settledBets.length,
-    totalWins: wins.length,
-    totalLosses: losses.length,
-    pendingBets: pendingBets.length,
-    winRate: settledBets.length > 0 ? (wins.length / settledBets.length) * 100 : 0,
-    totalStaked,
-    totalProfit,
-    roi: totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0,
-    averageOdds: avgOdds,
-    averageStake: settledBets.length > 0 ? totalStaked / settledBets.length : 0,
-    biggestWin,
-    biggestLoss,
-    currentStreak: { type: streakType, count: streakCount },
-    profitByGame,
-    profitByDay,
-    impliedProbabilityVsActual: (actualWinRate - impliedProb) * 100,
-    pendingStake
-  }
+  return { uniqueBets, uniqueTransactions, duplicateCount }
 }
