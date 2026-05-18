@@ -193,50 +193,23 @@ export function BettingTracker() {
   // Start with total deposits as the initial balance
   const initialBalance = totalDeposits
   
-  // Build map of all daily changes (bets + transactions)
-  const balanceByDayMap = new Map<string, { betPL: number; deposits: number; withdrawals: number }>()
-  
-  // Add bet data by day
-  allBets.forEach(bet => {
-    const day = bet.date
-    if (!balanceByDayMap.has(day)) {
-      balanceByDayMap.set(day, { betPL: 0, deposits: 0, withdrawals: 0 })
-    }
-    const entry = balanceByDayMap.get(day)!
-    const pl = bet.type === 'win' ? Number(bet.profit) : (bet.type === 'loss' ? -Number(bet.wager) : 0)
-    entry.betPL += pl
-  })
-  
-  // Add transaction data by day
-  dbTransactions.forEach(tx => {
-    const day = tx.date
-    if (!balanceByDayMap.has(day)) {
-      balanceByDayMap.set(day, { betPL: 0, deposits: 0, withdrawals: 0 })
-    }
-    const entry = balanceByDayMap.get(day)!
-    if (tx.type === 'deposit') {
-      entry.deposits += Number(tx.amount)
-    } else if (tx.type === 'withdrawal') {
-      entry.withdrawals += Number(tx.amount)
-    }
-  })
-
-  // Sort by date and calculate cumulative balance
+  // Build combined daily data from stats.profitByDay (already has betting data) + transactions
   let cumulativeBalance = initialBalance
-  const truePLByDay = Array.from(balanceByDayMap.entries())
-    .sort((a, b) => {
-      const dateA = new Date(a[0].split('/').reverse().join('-'))
-      const dateB = new Date(b[0].split('/').reverse().join('-'))
-      return dateA.getTime() - dateB.getTime()
-    })
-    .map(([date, { betPL, deposits, withdrawals }]) => {
-      cumulativeBalance += betPL + deposits - withdrawals
-      return { 
-        date, 
-        balance: cumulativeBalance, 
-        cumulative: cumulativeBalance 
-      }
-    })
+  const truePLByDay = stats.profitByDay.map((day) => {
+    // Get transaction changes for this day if any
+    const dayTransactions = dbTransactions.filter(tx => tx.date === day.date)
+    const dayDeposits = dayTransactions.filter(tx => tx.type === 'deposit').reduce((sum, tx) => sum + Number(tx.amount), 0)
+    const dayWithdrawals = dayTransactions.filter(tx => tx.type === 'withdrawal').reduce((sum, tx) => sum + Number(tx.amount), 0)
+    
+    // Cumulative balance = initial balance + (day's bet profit + deposits - withdrawals)
+    cumulativeBalance += (day.profit + dayDeposits - dayWithdrawals)
+    
+    return { 
+      date: day.date, 
+      balance: cumulativeBalance, 
+      cumulative: cumulativeBalance 
+    }
+  })
 
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
