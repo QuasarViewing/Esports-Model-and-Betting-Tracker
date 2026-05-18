@@ -418,9 +418,9 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         profitLoss = -stake  // Loss = negative stake
       } else if (typeLine === 'win') {
         actualType = 'win'
-        // For wins, profit = displayed value (total return) - stake
-        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
-        profitLoss = displayedValue - stake
+        // For wins, calculate profit from odds: profit = stake * (odds - 1)
+        // This is more reliable than parsing the return field which can be inconsistent
+        profitLoss = stake * (odds - 1)
       } else if (typeLine === 'cashed out') {
         actualType = 'cashed_out'
         const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
