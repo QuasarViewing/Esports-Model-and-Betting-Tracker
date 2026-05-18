@@ -310,10 +310,21 @@ function parseDate(dateStr: string): Date {
 }
 
 function parseDateString(dateStr: string): { datePart: string; timePart: string } {
-  // Format: "18/05/2612:22PM" - date runs into time without space
-  const match = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{2})\s*(\d{1,2}:\d{2}\s*(?:AM|PM))$/i)
-  if (match) {
-    return { datePart: match[1], timePart: match[2] }
+  // Format: "18/05/2612:22PM" - date runs directly into time without space
+  // The date is DD/MM/YY (8 chars) and time is H:MMAM/PM or HH:MMAM/PM
+  
+  // Try to extract date (first 8 chars for DD/MM/YY format)
+  const dateMatch = dateStr.match(/^(\d{1,2}\/\d{1,2}\/\d{2})/)
+  if (dateMatch) {
+    const datePart = dateMatch[1]
+    const rest = dateStr.slice(datePart.length).trim()
+    // Rest should be time like "12:22PM" or "9:45AM"
+    const timeMatch = rest.match(/^(\d{1,2}:\d{2}\s*(?:AM|PM))$/i)
+    if (timeMatch) {
+      return { datePart, timePart: timeMatch[1] }
+    }
+    // If no proper time found, return what we have
+    return { datePart, timePart: rest || '' }
   }
   return { datePart: dateStr, timePart: '' }
 }
