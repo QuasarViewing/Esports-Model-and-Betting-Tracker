@@ -121,11 +121,14 @@ async function cargoQuery(game: GameType, params: {
 // Get team info using Cargo API
 export async function getTeamInfo(teamName: string, game: GameType): Promise<TeamInfoData | null> {
   try {
-    // Query team data from Cargo
+    // Normalize team name for search (handle case variations)
+    const searchName = teamName.trim()
+    
+    // Query team data from Cargo with case-insensitive search
     const teamData = await cargoQuery(game, {
       tables: 'Teams',
       fields: 'Name,ShortName,Region,Image,Link',
-      where: `Name="${teamName}" OR ShortName="${teamName}"`,
+      where: `LOWER(Name)="${searchName.toLowerCase()}" OR LOWER(ShortName)="${searchName.toLowerCase()}"`,
       limit: 1
     })
 
@@ -134,7 +137,7 @@ export async function getTeamInfo(teamName: string, game: GameType): Promise<Tea
       const fuzzyData = await cargoQuery(game, {
         tables: 'Teams',
         fields: 'Name,ShortName,Region,Image,Link',
-        where: `Name LIKE "%${teamName}%" OR ShortName LIKE "%${teamName}%"`,
+        where: `LOWER(Name) LIKE "%${searchName.toLowerCase()}%" OR LOWER(ShortName) LIKE "%${searchName.toLowerCase()}%"`,
         limit: 1
       })
       
@@ -224,11 +227,13 @@ function createFallbackTeamInfo(teamName: string, game: GameType): TeamInfoData 
 // Get recent match results for a team
 export async function getTeamMatchHistory(teamName: string, game: GameType, limit: number = 10): Promise<MatchResult[]> {
   try {
-    // Query recent matches from Cargo
+    const searchName = teamName.trim()
+    
+    // Query recent matches from Cargo with case-insensitive search
     const matches = await cargoQuery(game, {
       tables: 'MatchSchedule',
       fields: 'Team1,Team2,Team1Score,Team2Score,DateTime_UTC,Tournament,BestOf',
-      where: `(Team1="${teamName}" OR Team2="${teamName}") AND Winner IS NOT NULL`,
+      where: `(LOWER(Team1) LIKE "%${searchName.toLowerCase()}%" OR LOWER(Team2) LIKE "%${searchName.toLowerCase()}%") AND Winner IS NOT NULL`,
       orderBy: 'DateTime_UTC DESC',
       limit
     })
@@ -264,10 +269,13 @@ export async function getTeamMatchHistory(teamName: string, game: GameType, limi
 // Get head-to-head data between two teams
 export async function getHeadToHeadData(team1: string, team2: string, game: GameType): Promise<HeadToHead> {
   try {
+    const t1 = team1.trim().toLowerCase()
+    const t2 = team2.trim().toLowerCase()
+    
     const matches = await cargoQuery(game, {
       tables: 'MatchSchedule',
       fields: 'Team1,Team2,Team1Score,Team2Score,DateTime_UTC,Tournament,Winner',
-      where: `((Team1="${team1}" AND Team2="${team2}") OR (Team1="${team2}" AND Team2="${team1}")) AND Winner IS NOT NULL`,
+      where: `((LOWER(Team1) LIKE "%${t1}%" AND LOWER(Team2) LIKE "%${t2}%") OR (LOWER(Team1) LIKE "%${t2}%" AND LOWER(Team2) LIKE "%${t1}%")) AND Winner IS NOT NULL`,
       orderBy: 'DateTime_UTC DESC',
       limit: 20
     })

@@ -185,6 +185,10 @@ export function BettingTracker() {
     currentBalance = lastTxBalance
   }
 
+  // True P/L is based on actual balance, not bet calculations
+  // This is more accurate than summing bet profits
+  const truePL = currentBalance + totalWithdrawals - totalDeposits
+
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
 
@@ -223,18 +227,18 @@ export function BettingTracker() {
               <div className="text-right">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Net Profit</p>
                 <p className={`text-2xl font-bold font-mono ${
-                  stats.totalProfit >= 0 ? 'text-chart-1 text-glow-green' : 'text-destructive text-glow-red'
+                  truePL >= 0 ? 'text-chart-1 text-glow-green' : 'text-destructive text-glow-red'
                 }`}>
-                  {stats.totalProfit >= 0 ? '+' : ''}${stats.totalProfit.toFixed(2)}
+                  {truePL >= 0 ? '+' : ''}${truePL.toFixed(2)}
                 </p>
               </div>
               <div className="h-12 w-px bg-border" />
               <div className="text-right">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">ROI</p>
                 <p className={`text-2xl font-bold font-mono ${
-                  stats.roi >= 0 ? 'text-chart-1' : 'text-destructive'
+                  truePL >= 0 ? 'text-chart-1' : 'text-destructive'
                 }`}>
-                  {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(1)}%
+                  {stats.totalStaked > 0 ? (truePL >= 0 ? '+' : '') + ((truePL / stats.totalStaked) * 100).toFixed(1) : '0.0'}%
                 </p>
               </div>
             </div>
