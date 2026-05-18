@@ -63,6 +63,13 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
   let inserted = 0
   
   for (const bet of bets) {
+    // Use dateString directly to avoid timezone issues
+    // dateString is in format "DD/MM/YY" - convert to "YYYY-MM-DD"
+    const dateParts = bet.dateString.split('/')
+    const localDateStr = dateParts.length === 3 
+      ? `20${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+      : `${bet.date.getFullYear()}-${String(bet.date.getMonth() + 1).padStart(2, '0')}-${String(bet.date.getDate()).padStart(2, '0')}`
+    
     const { error } = await supabase.from('bets').insert({
       bet_hash: bet.hash,
       date: bet.date,
@@ -105,6 +112,13 @@ export async function saveTransactions(transactions: ParsedTransaction[]): Promi
   let inserted = 0
   
   for (const tx of transactions) {
+    // Use dateString directly to avoid timezone issues
+    // dateString is in format "DD/MM/YY" - convert to "YYYY-MM-DD"
+    const dateParts = tx.dateString.split('/')
+    const localDateStr = dateParts.length === 3 
+      ? `20${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+      : `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}-${String(tx.date.getDate()).padStart(2, '0')}`
+    
     const { error } = await supabase.from('transactions').insert({
       tx_hash: tx.hash,
       type: tx.type,

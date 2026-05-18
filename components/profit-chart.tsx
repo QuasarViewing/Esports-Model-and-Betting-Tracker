@@ -6,18 +6,34 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface ProfitChartProps {
   profitByDay: { date: string; profit: number; cumulative: number }[]
-  truePLByDay?: { date: string; balance: number; cumulative: number }[]
   totalProfit?: number
 }
 
-export function ProfitChart({ profitByDay, truePLByDay, totalProfit }: ProfitChartProps) {
-  // Use truePLByDay if available, otherwise use profitByDay
-  const sourceData = truePLByDay && truePLByDay.length > 0 ? truePLByDay : profitByDay
+export function ProfitChart({ profitByDay, totalProfit }: ProfitChartProps) {
+  // Use profitByDay for betting profit only (starts at 0, not at deposit amount)
+  const sourceData = profitByDay
   
-  const data = sourceData.map(d => ({
-    ...d,
-    displayDate: d.date.replace(/\/26$/, '').replace(/\//g, '/'),
-  }))
+  // Convert DD/MM/YY to sortable format and display format
+  const data = sourceData.map(d => {
+    const parts = d.date.split('/')
+    // Create sortable date (YYYY-MM-DD) and display date (MM/DD)
+    // "Start" gets a sort key that comes before all dates (0000-00-00)
+    const sortKey = d.date === 'Start' 
+      ? '0000-00-00'
+      : parts.length === 3 
+        ? `20${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+        : d.date
+    const displayDate = d.date === 'Start'
+      ? 'Start'
+      : parts.length === 3 
+        ? `${parts[1]}/${parts[0]}`  // MM/DD format
+        : d.date
+    return {
+      ...d,
+      sortKey,
+      displayDate,
+    }
+  }).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
   if (data.length === 0) {
     return (

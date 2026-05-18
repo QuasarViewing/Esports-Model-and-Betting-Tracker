@@ -63,29 +63,35 @@ export async function getLiveMatches(game: GameType): Promise<LiveMatch[]> {
       return []
     }
 
-    const gameMap: Record<GameType, string> = {
-      dota2: 'dota-2',
-      lol: 'league-of-legends',
-      csgo: 'counter-strike',
+    // PandaScore uses game-specific endpoints with /running for live matches
+    const gameSlugMap: Record<GameType, string> = {
+      dota2: 'dota2',
+      lol: 'lol',
+      csgo: 'csgo',
       valorant: 'valorant'
     }
 
-    const response = await fetch(
-      `https://api.pandascore.co/${gameMap[game]}/matches?filter[status]=running&sort=-scheduled_at&page=1&per_page=20`,
-      {
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${apiKey}`
-        }
+    // Use game-specific running matches endpoint
+    const url = `https://api.pandascore.co/${gameSlugMap[game]}/matches/running?per_page=20`
+    console.log('[v0] Fetching live matches from:', url)
+
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'authorization': `Bearer ${apiKey}`
       }
-    )
+    })
+
+    console.log('[v0] PandaScore response status:', response.status)
 
     if (!response.ok) {
-      console.error('[v0] PandaScore live matches error:', response.status)
+      const errorText = await response.text()
+      console.error('[v0] PandaScore live matches error:', response.status, errorText)
       return []
     }
 
     const data = await response.json()
+    console.log('[v0] PandaScore returned matches:', data?.length || 0)
     
     return (data || []).map((match: any) => ({
       id: match.id,
