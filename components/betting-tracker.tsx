@@ -62,7 +62,32 @@ export function BettingTracker() {
     setIsImporting(true)
     try {
       const parsed = parseBettingData(rawInput)
-      setBets(parsed)
+      
+      // Separate bets from transactions (deposits/withdrawals)
+      const betEntries = parsed.filter(b => b.type !== 'deposit' && b.type !== 'withdraw')
+      const transactionEntries = parsed.filter(b => b.type === 'deposit' || b.type === 'withdraw')
+      
+      setBets(betEntries)
+      
+      // Convert parsed deposit/withdraw entries to Transaction format
+      if (transactionEntries.length > 0) {
+        const newTransactions: Transaction[] = transactionEntries.map(t => ({
+          id: t.id,
+          type: t.type === 'deposit' ? 'deposit' : 'withdrawal',
+          amount: Math.abs(t.profitLoss),
+          bookmaker: 'Tab',
+          method: 'Bank Transfer',
+          date: t.date,
+          notes: `Imported from Tab (Balance: $${t.balance.toFixed(2)})`
+        }))
+        
+        // Merge with existing transactions, avoiding duplicates by ID
+        setTransactions(prev => {
+          const existingIds = new Set(prev.map(t => t.id))
+          const uniqueNew = newTransactions.filter(t => !existingIds.has(t.id))
+          return [...uniqueNew, ...prev]
+        })
+      }
     } catch (error) {
       console.error('[v0] Error parsing bets:', error)
     }
