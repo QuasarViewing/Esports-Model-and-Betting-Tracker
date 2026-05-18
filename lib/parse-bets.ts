@@ -82,7 +82,17 @@ const LOL_REGION_TEAMS: Record<string, string[]> = {
 }
 
 const CSGO_TEAMS = [
-  'Navi', 'FaZe', 'G2', 'Vitality', 'Astralis', 'ENCE', 'Heroic', 'Cloud9'
+  'Navi', 'FaZe', 'G2', 'Vitality', 'Astralis', 'ENCE', 'Heroic', 'Cloud9',
+  'MOUZ', 'Complexity', 'BIG', 'NIP', 'Ninjas in Pyjamas'
+]
+
+const VALORANT_TEAMS = [
+  'MIBR', 'LOUD', 'Sentinels', 'NRG', '100 Thieves', '100T', 'Cloud9', 'C9',
+  'Evil Geniuses', 'EG', 'XSET', 'OpTic', 'The Guard', 'Version1', 'V1',
+  'Paper Rex', 'PRX', 'DRX', 'T1', 'Gen.G', 'Zeta Division', 'FNATIC', 'FNC',
+  'Team Liquid', 'TL', 'Natus Vincere', 'NAVI', 'FUT Esports', 'KRU', 'Leviatán',
+  'Team Heretics', 'Karmine Corp', 'KC', 'BBL Esports', 'EDward Gaming', 'EDG',
+  'Bilibili Gaming', 'Trace Esports', 'Talon Esports', 'Global Esports', 'GE'
 ]
 
 function generateHash(date: string, time: string, match: string, odds: number, stake: number): string {
@@ -95,24 +105,49 @@ function generateTxHash(date: string, time: string, type: string, amount: number
   return crypto.createHash('md5').update(str).digest('hex').substring(0, 16)
 }
 
-function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
+function detectGame(match: string, selection: string, gameLabel?: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
   const text = `${match} ${selection}`.toLowerCase()
   
+  // If the line has explicit game label, use it first
+  if (gameLabel) {
+    const label = gameLabel.toLowerCase()
+    if (label.includes('dota')) return 'dota2'
+    if (label.includes('lol') || label.includes('league')) return 'lol'
+    if (label.includes('cs') || label.includes('counter')) return 'csgo'
+    if (label.includes('valorant') || label.includes('val')) return 'valorant'
+  }
+  
+  // Check Valorant teams FIRST (some teams like MIBR, 100T play multiple games)
+  for (const team of VALORANT_TEAMS) {
+    if (text.includes(team.toLowerCase())) {
+      // Double-check: if it's clearly a LoL regional league match, it's LoL
+      if (text.includes('lck') || text.includes('lpl') || text.includes('lec') || text.includes('lcs')) {
+        return 'lol'
+      }
+      return 'valorant'
+    }
+  }
+  
   for (const team of DOTA_TEAMS) {
-    if (text.toLowerCase().includes(team.toLowerCase())) return 'dota2'
+    if (text.includes(team.toLowerCase())) return 'dota2'
+  }
+  
+  // Check if teams are LoL-specific (regional league teams)
+  for (const [, teams] of Object.entries(LOL_REGION_TEAMS)) {
+    for (const team of teams) {
+      if (text.includes(team.toLowerCase())) return 'lol'
+    }
   }
   
   for (const team of LOL_TEAMS) {
-    if (text.toLowerCase().includes(team.toLowerCase())) return 'lol'
+    if (text.includes(team.toLowerCase())) return 'lol'
   }
   
   for (const team of CSGO_TEAMS) {
-    if (text.toLowerCase().includes(team.toLowerCase())) return 'csgo'
+    if (text.includes(team.toLowerCase())) return 'csgo'
   }
   
-  if (text.includes('valorant')) return 'valorant'
-  
-  return 'dota2'
+  return 'other'
 }
 
 function detectLoLRegion(match: string, selection: string): string | null {
@@ -192,11 +227,25 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     
     // Detect entry type
     if (typeLine === 'withdraw' || typeLine === 'deposit') {
-      // Transaction format: type, date, "Withdrawal/Deposit", status, -, amount, balance change, balance
+      // Transaction format: type, date, time, "Withdrawal/Deposit", status, -, display_amount, actual_amount, balance
+      // For withdrawals: the actual amount is usually the negative one like "-$60.00"
       const dateStr = lines[i + 1] || ''
-      const { datePart, timePart } = parseDateString(dateStr)
-      const amount = Math.abs(parseFloat(lines[i + 5]?.replace(/[^0-9.-]/g, '') || '0'))
-      const balance = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
+      const timeStr = lines[i + 2] || ''
+      const { datePart, timePart } = parseDateString(dateStr + timeStr)
+      
+      // Find the actual transaction amount - look for negative value for withdrawals
+      let amount = 0
+      const balanceAfter = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
+      
+      // Try to find the amount in positions 6, 7 (can vary based on format)
+      for (let j = 5; j <= 7; j++) {
+        const val = lines[i + j]?.replace(/[^0-9.-]/g, '') || ''
+        const parsed = parseFloat(val)
+        if (!isNaN(parsed) && parsed !== 0) {
+          amount = Math.abs(parsed)
+          break
+        }
+      }
       
       const hash = generateTxHash(datePart, timePart, typeLine, amount)
       
@@ -204,25 +253,26 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         id: `tx-${Date.now()}-${i}`,
         hash,
         type: typeLine === 'withdraw' ? 'withdrawal' : 'deposit',
-        date: parseDate(dateStr),
+        date: parseDate(dateStr + timeStr),
         dateString: datePart,
         timeString: timePart,
         amount,
-        balanceAfter: balance
+        balanceAfter
       })
       
-      i += 8
+      i += 9
     } else if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
-      // Bet format - need to handle the duplicate issue
+      // Bet format: type, date+time, game, match, selection, eventDate, odds, stake, profit, balance
       const dateStr = lines[i + 1] || ''
       const { datePart, timePart } = parseDateString(dateStr)
-      const match = lines[i + 2] || ''
-      const selection = lines[i + 3] || ''
-      const eventDate = lines[i + 4] || ''
-      const odds = parseFloat(lines[i + 5] || '0')
-      const stake = Math.abs(parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'))
-      const profitStr = lines[i + 7]?.trim() || '-'
-      const balance = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
+      const gameLabel = lines[i + 2] || ''
+      const match = lines[i + 3] || ''
+      const selection = lines[i + 4] || ''
+      const eventDate = lines[i + 5] || ''
+      const odds = parseFloat(lines[i + 6] || '0')
+      const stake = Math.abs(parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0'))
+      const profitStr = lines[i + 8]?.trim() || '-'
+      const balance = parseFloat(lines[i + 9]?.replace(/[^0-9.-]/g, '') || '0')
       
       // KEY FIX: Determine actual status from profit field, not just the type line
       // If profit shows "-" it's pending, if it shows a number it's settled
@@ -244,7 +294,7 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       }
       
       if (match && odds > 0 && stake > 0) {
-        const game = detectGame(match, selection)
+        const game = detectGame(match, selection, gameLabel)
         const hash = generateHash(datePart, timePart, match, odds, stake)
         
         // Create bet signature for deduplication (same bet placed)
@@ -283,7 +333,7 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         }
       }
       
-      i += 9
+      i += 10
     } else {
       i++
     }
