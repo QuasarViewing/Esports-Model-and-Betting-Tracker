@@ -9,6 +9,7 @@ import { TeamInfo } from '@/components/team-info'
 import { HeadToHead } from '@/components/head-to-head'
 import { MatchHistory } from '@/components/match-history'
 import { MatchSchedule } from '@/components/match-schedule'
+import { LiveMatches } from '@/components/live-matches'
 import { Search, Swords } from 'lucide-react'
 
 const games = [
@@ -32,6 +33,9 @@ export function MatchResearch() {
 
   return (
     <div className="space-y-6">
+      {/* Live Matches - Always visible */}
+      <LiveMatches />
+
       {/* Schedule - Always visible */}
       <MatchSchedule />
 

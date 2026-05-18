@@ -41,9 +41,6 @@ interface FetchOptions {
 async function pandascoreRequest(path: string, options: FetchOptions = {}) {
   const url = new URL(`${PANDASCORE_BASE}${path}`)
   
-  // Add API token
-  url.searchParams.set('token', process.env.PANDASCORE_API_KEY || '')
-  
   // Add custom params
   if (options.params) {
     Object.entries(options.params).forEach(([key, value]) => {
@@ -55,6 +52,7 @@ async function pandascoreRequest(path: string, options: FetchOptions = {}) {
     const response = await fetch(url.toString(), {
       headers: {
         'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.PANDASCORE_API_KEY || ''}`
       },
     })
 

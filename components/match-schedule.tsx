@@ -45,13 +45,13 @@ export function MatchSchedule() {
   const { data: apiMatches, isLoading: matchesLoading } = useSWR<UpcomingMatch[]>(
     view === 'matches' ? `/api/liquipedia/schedule?game=${game}&limit=15` : null,
     fetcher,
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: true, revalidateOnReconnect: true }
   )
 
   const { data: apiTournaments, isLoading: tournamentsLoading } = useSWR<Tournament[]>(
     view === 'tournaments' ? `/api/liquipedia/tournaments?game=${game}&status=ongoing` : null,
     fetcher,
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: true, revalidateOnReconnect: true }
   )
 
   // Use API data if available, otherwise use seeded data

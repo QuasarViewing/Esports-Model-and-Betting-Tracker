@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingUp, TrendingDown, Minus, Users, MapPin, Trophy, ExternalLink } from 'lucide-react'
+import { TeamRecord } from '@/components/team-record'
 import { cn } from '@/lib/utils'
 
 interface TeamInfoProps {
@@ -178,6 +179,11 @@ export function TeamInfo({ teamName, game, compact = false }: TeamInfoProps) {
             </div>
           </div>
         )}
+
+        {/* Team Record Stats */}
+        <div className="pt-2 border-t border-border/30">
+          <TeamRecord teamName={team.name} game={game} />
+        </div>
       </CardContent>
     </Card>
   )
