@@ -162,9 +162,12 @@
     @apply relative overflow-hidden;
     background: linear-gradient(145deg, oklch(0.14 0.015 240), oklch(0.1 0.01 240));
   }
+  .stat-card > * {
+    @apply relative z-10;
+  }
   .stat-card::before {
     content: '';
-    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none;
     background: linear-gradient(135deg, oklch(0.75 0.15 180 / 0.1), transparent);
   }
   .stat-card:hover::before {
