@@ -370,6 +370,8 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       const amount = Math.abs(parseFloat(amountStr))
       const balanceAfter = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
       
+      console.log(`[v0] TRANSACTION: ${firstLine} | amount: ${amount} | balanceAfter: ${balanceAfter}`)
+      
       const hash = generateTxHash(datePart, timePart, firstLine, amount)
       
       transactions.push({
