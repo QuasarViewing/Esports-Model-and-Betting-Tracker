@@ -63,11 +63,12 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
   let inserted = 0
   
   for (const bet of bets) {
-    // Use local date components instead of toISOString() to avoid timezone shift
-    const year = bet.date.getFullYear()
-    const month = String(bet.date.getMonth() + 1).padStart(2, '0')
-    const day = String(bet.date.getDate()).padStart(2, '0')
-    const localDateStr = `${year}-${month}-${day}`
+    // Use dateString directly to avoid timezone issues
+    // dateString is in format "DD/MM/YY" - convert to "YYYY-MM-DD"
+    const dateParts = bet.dateString.split('/')
+    const localDateStr = dateParts.length === 3 
+      ? `20${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+      : `${bet.date.getFullYear()}-${String(bet.date.getMonth() + 1).padStart(2, '0')}-${String(bet.date.getDate()).padStart(2, '0')}`
     
     const { error } = await supabase.from('bets').insert({
       bet_hash: bet.hash,
@@ -111,11 +112,12 @@ export async function saveTransactions(transactions: ParsedTransaction[]): Promi
   let inserted = 0
   
   for (const tx of transactions) {
-    // Use local date components instead of toISOString() to avoid timezone shift
-    const year = tx.date.getFullYear()
-    const month = String(tx.date.getMonth() + 1).padStart(2, '0')
-    const day = String(tx.date.getDate()).padStart(2, '0')
-    const localDateStr = `${year}-${month}-${day}`
+    // Use dateString directly to avoid timezone issues
+    // dateString is in format "DD/MM/YY" - convert to "YYYY-MM-DD"
+    const dateParts = tx.dateString.split('/')
+    const localDateStr = dateParts.length === 3 
+      ? `20${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+      : `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}-${String(tx.date.getDate()).padStart(2, '0')}`
     
     const { error } = await supabase.from('transactions').insert({
       tx_hash: tx.hash,
