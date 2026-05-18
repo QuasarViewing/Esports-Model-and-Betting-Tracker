@@ -19,7 +19,33 @@ import { MatchResearch } from './match-research'
 
 export function BettingTracker() {
   const [rawInput, setRawInput] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
+
+  const handleClearAllData = async () => {
+    if (!confirm('Are you sure you want to delete ALL betting data? This cannot be undone.')) {
+      return
+    }
+
+    setIsClearing(true)
+    try {
+      const response = await fetch('/api/data/clear', { method: 'POST' })
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert('Error clearing data: ' + data.error)
+        return
+      }
+
+      alert('All data cleared successfully! Please refresh the page.')
+      setRawInput('')
+      window.location.reload()
+    } catch (error) {
+      console.error('[v0] Clear data error:', error)
+      alert('Failed to clear data')
+    } finally {
+      setIsClearing(false)
+    }
+  }
   const [isLoading, setIsLoading] = useState(true)
   const [dbBets, setDbBets] = useState<DbBet[]>([])
   const [dbTransactions, setDbTransactions] = useState<DbTransaction[]>([])
@@ -400,18 +426,33 @@ and will be skipped if already imported.`}
                       <span>{rawInput.split('\n').filter(l => l.trim()).length} lines pasted</span>
                     )}
                   </div>
-                  <Button 
-                    onClick={handleImport} 
-                    disabled={isImporting || !rawInput.trim()}
-                    className="gap-2"
-                  >
-                    {isImporting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    Import & Analyze
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="destructive"
+                      onClick={handleClearAllData}
+                      disabled={isClearing}
+                      className="gap-2"
+                    >
+                      {isClearing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      Clear All Data
+                    </Button>
+                    <Button 
+                      onClick={handleImport} 
+                      disabled={isImporting || !rawInput.trim()}
+                      className="gap-2"
+                    >
+                      {isImporting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      Import & Analyze
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
