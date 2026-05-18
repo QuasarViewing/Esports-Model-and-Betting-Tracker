@@ -13,10 +13,22 @@ export function ProfitChart({ profitByDay, totalProfit }: ProfitChartProps) {
   // Use profitByDay for betting profit only (starts at 0, not at deposit amount)
   const sourceData = profitByDay
   
-  const data = sourceData.map(d => ({
-    ...d,
-    displayDate: d.date.replace(/\/26$/, '').replace(/\//g, '/'),
-  }))
+  // Convert DD/MM/YY to sortable format and display format
+  const data = sourceData.map(d => {
+    const parts = d.date.split('/')
+    // Create sortable date (YYYY-MM-DD) and display date (MM/DD)
+    const sortKey = parts.length === 3 
+      ? `20${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+      : d.date
+    const displayDate = parts.length === 3 
+      ? `${parts[1]}/${parts[0]}`  // MM/DD format
+      : d.date
+    return {
+      ...d,
+      sortKey,
+      displayDate,
+    }
+  }).sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
   if (data.length === 0) {
     return (
