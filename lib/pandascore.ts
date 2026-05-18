@@ -150,29 +150,19 @@ export async function getTournamentsPandaScore(game: 'dota2' | 'lol' | 'csgo' | 
       return []
     }
 
-  return filtered.map((t: PandaScoreTournament) => ({
-    id: t.id.toString(),
-    name: t.name,
-    tier: t.tier || 'Tier 2',
-    game: 'dota2',
-    startDate: new Date(t.start_date).toLocaleDateString(),
-    endDate: new Date(t.end_date).toLocaleDateString(),
-    prizePool: t.prize_pool ? `$${t.prize_pool.toLocaleString()}` : 'TBA',
-    status: status,
-    region: t.region || 'International'
-  }))
-}
-}
-
-  return filtered.map((t: PandaScoreTournament) => ({
-    id: t.id.toString(),
-    name: t.name,
-    tier: 'Tier 1',
-    game,
-    startDate: t.start_date,
-    endDate: t.end_date,
-    prizePool: 'TBD',
-    status: new Date(t.start_date) > now ? 'upcoming' : 'ongoing',
-    region: 'International'
-  }))
+    return filtered.map((t: PandaScoreTournament) => ({
+      id: t.id.toString(),
+      name: t.name,
+      tier: t.tier || 'Tier 2',
+      game: 'dota2',
+      startDate: new Date(t.start_date).toLocaleDateString(),
+      endDate: new Date(t.end_date).toLocaleDateString(),
+      prizePool: t.prize_pool ? `$${t.prize_pool.toLocaleString()}` : 'TBA',
+      status: status,
+      region: t.region || 'International'
+    }))
+  } catch (error) {
+    console.log(`[v0] PandaScore tournaments fetch failed`)
+    return []
+  }
 }
