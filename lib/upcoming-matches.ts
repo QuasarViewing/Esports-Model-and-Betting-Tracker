@@ -156,17 +156,136 @@ export const UPCOMING_TOURNAMENTS = [
   },
 ]
 
+// League of Legends Matches
+export const UPCOMING_LOL_MATCHES: UpcomingMatch[] = [
+  {
+    id: 'lec-1',
+    team1: 'G2 Esports',
+    team2: 'Fnatic',
+    tournament: 'LEC Summer 2026',
+    date: '2026-05-18',
+    time: '17:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'lec-2',
+    team1: 'MAD Lions',
+    team2: 'Rogue',
+    tournament: 'LEC Summer 2026',
+    date: '2026-05-19',
+    time: '17:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'lec-3',
+    team1: 'Excel Esports',
+    team2: 'SK Gaming',
+    tournament: 'LEC Summer 2026',
+    date: '2026-05-19',
+    time: '19:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+]
+
+// Counter-Strike 2 Matches
+export const UPCOMING_CS2_MATCHES: UpcomingMatch[] = [
+  {
+    id: 'cs2-1',
+    team1: 'Vitality',
+    team2: 'FaZe Clan',
+    tournament: 'ESL Pro League Season 20',
+    date: '2026-05-18',
+    time: '18:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'cs2-2',
+    team1: 'Natus Vincere',
+    team2: 'G2 Esports',
+    tournament: 'ESL Pro League Season 20',
+    date: '2026-05-19',
+    time: '16:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'cs2-3',
+    team1: 'Liquid',
+    team2: 'ENCE',
+    tournament: 'ESL Pro League Season 20',
+    date: '2026-05-19',
+    time: '18:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+]
+
+// Valorant Matches
+export const UPCOMING_VALORANT_MATCHES: UpcomingMatch[] = [
+  {
+    id: 'val-1',
+    team1: 'FaZe Clan',
+    team2: 'Sentinels',
+    tournament: 'VCT International 2026',
+    date: '2026-05-18',
+    time: '20:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'val-2',
+    team1: 'Gen.G',
+    team2: 'LOUD',
+    tournament: 'VCT International 2026',
+    date: '2026-05-19',
+    time: '19:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'val-3',
+    team1: 'Team Liquid',
+    team2: 'Paper Rex',
+    tournament: 'VCT International 2026',
+    date: '2026-05-19',
+    time: '21:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+]
+
 export function getUpcomingMatches(game: 'dota2' | 'lol' | 'csgo' | 'valorant' = 'dota2') {
-  if (game === 'dota2') {
-    return UPCOMING_DOTA2_MATCHES
+  switch (game) {
+    case 'dota2':
+      return UPCOMING_DOTA2_MATCHES
+    case 'lol':
+      return UPCOMING_LOL_MATCHES
+    case 'csgo':
+      return UPCOMING_CS2_MATCHES
+    case 'valorant':
+      return UPCOMING_VALORANT_MATCHES
+    default:
+      return []
   }
-  // Return empty array for other games until we have data
-  return []
 }
 
 export function getTournaments(game: 'dota2' | 'lol' | 'csgo' | 'valorant' = 'dota2') {
   if (game === 'dota2') {
     return UPCOMING_TOURNAMENTS
   }
+  // Add tournament data for other games as needed
   return []
 }
