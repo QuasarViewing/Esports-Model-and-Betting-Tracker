@@ -6,297 +6,459 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { parseBettingData, calculateStats, type ParsedBet } from '@/lib/parse-bets'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { parseBettingData, checkDuplicates, calculateStats, type ParsedBet, type ParsedTransaction, type ImportResult } from '@/lib/parse-bets'
+import { getExistingHashes, saveBets, saveTransactions, getAllBets, getAllTransactions, type DbBet, type DbTransaction } from '@/lib/actions'
 import { StatsCards } from './stats-cards'
 import { BetsTable } from './bets-table'
 import { ProfitChart } from './profit-chart'
 import { GameBreakdown } from './game-breakdown'
-import { Transactions, type Transaction } from './transactions'
-import { BankrollSummary } from './bankroll-summary'
-import { ClipboardPaste, Trash2, Save, Upload } from 'lucide-react'
-
-const STORAGE_KEY = 'esports-bet-tracker-data'
-
-interface StoredData {
-  bets: ParsedBet[]
-  transactions: Transaction[]
-  rawInput: string
-}
+import { ImportSummary } from './import-summary'
+import { ClipboardPaste, Trash2, Upload, Loader2, Gamepad2, Zap, BarChart3, History, TrendingUp, AlertCircle } from 'lucide-react'
 
 export function BettingTracker() {
   const [rawInput, setRawInput] = useState('')
-  const [bets, setBets] = useState<ParsedBet[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isImporting, setIsImporting] = useState(false)
-  const [activeTab, setActiveTab] = useState('bets')
+  const [isLoading, setIsLoading] = useState(true)
+  const [dbBets, setDbBets] = useState<DbBet[]>([])
+  const [dbTransactions, setDbTransactions] = useState<DbTransaction[]>([])
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [showImportSummary, setShowImportSummary] = useState(false)
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [error, setError] = useState<string | null>(null)
 
-  // Load data from localStorage on mount
+  // Load existing data from database
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
+    async function loadData() {
+      setIsLoading(true)
+      setError(null)
       try {
-        const data: StoredData = JSON.parse(stored)
-        setBets(data.bets.map(b => ({ ...b, date: new Date(b.date) })))
-        setTransactions(data.transactions.map(t => ({ ...t, date: new Date(t.date) })))
-        setRawInput(data.rawInput || '')
-      } catch (e) {
-        console.error('[v0] Failed to load stored data:', e)
+        const [betsData, txData] = await Promise.all([
+          getAllBets(),
+          getAllTransactions()
+        ])
+        setDbBets(betsData)
+        setDbTransactions(txData)
+      } catch (err) {
+        console.error('[v0] Error loading data:', err)
+        setError('Failed to load data from database')
       }
+      setIsLoading(false)
     }
+    loadData()
   }, [])
 
-  // Save data to localStorage when it changes
-  useEffect(() => {
-    if (bets.length > 0 || transactions.length > 0) {
-      const data: StoredData = { bets, transactions, rawInput }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    }
-  }, [bets, transactions, rawInput])
+  // Convert DB bets to ParsedBet format for stats calculation
+  const allBets: ParsedBet[] = useMemo(() => dbBets.map(b => ({
+    id: b.id,
+    hash: b.bet_hash,
+    type: b.status as ParsedBet['type'],
+    date: new Date(b.date),
+    dateString: b.date,
+    timeString: b.time || '',
+    match: b.match,
+    selection: b.selection,
+    eventDate: '',
+    odds: Number(b.odds),
+    stake: Number(b.stake),
+    profitLoss: b.profit_loss ? Number(b.profit_loss) : 0,
+    balance: b.balance_after ? Number(b.balance_after) : 0,
+    game: b.game as ParsedBet['game'],
+    tournament: '',
+    isLive: false,
+    betType: (b.bet_type || 'winner') as ParsedBet['betType']
+  })), [dbBets])
 
-  const stats = useMemo(() => calculateStats(bets), [bets])
-
-  // Get current balance from the last bet if available
-  const currentBalance = bets.length > 0 ? bets[bets.length - 1].balance : undefined
-
-  const handleImport = () => {
-    setIsImporting(true)
-    try {
-      const parsed = parseBettingData(rawInput)
-      
-      // Separate bets from transactions (deposits/withdrawals)
-      const betEntries = parsed.filter(b => b.type !== 'deposit' && b.type !== 'withdraw')
-      const transactionEntries = parsed.filter(b => b.type === 'deposit' || b.type === 'withdraw')
-      
-      setBets(betEntries)
-      
-      // Convert parsed deposit/withdraw entries to Transaction format
-      if (transactionEntries.length > 0) {
-        const newTransactions: Transaction[] = transactionEntries.map(t => ({
-          id: t.id,
-          type: t.type === 'deposit' ? 'deposit' : 'withdrawal',
-          amount: Math.abs(t.profitLoss),
-          bookmaker: 'Tab',
-          method: 'Bank Transfer',
-          date: t.date,
-          notes: `Imported from Tab (Balance: $${t.balance.toFixed(2)})`
-        }))
-        
-        // Merge with existing transactions, avoiding duplicates by ID
-        setTransactions(prev => {
-          const existingIds = new Set(prev.map(t => t.id))
-          const uniqueNew = newTransactions.filter(t => !existingIds.has(t.id))
-          return [...uniqueNew, ...prev]
-        })
-      }
-    } catch (error) {
-      console.error('[v0] Error parsing bets:', error)
-    }
-    setIsImporting(false)
-  }
-
-  const handleClear = () => {
-    setBets([])
-    setTransactions([])
-    setRawInput('')
-    localStorage.removeItem(STORAGE_KEY)
-  }
+  const stats = useMemo(() => calculateStats(allBets), [allBets])
 
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText()
       setRawInput(text)
-    } catch (error) {
-      console.error('[v0] Failed to read clipboard:', error)
+    } catch (err) {
+      console.error('[v0] Failed to paste:', err)
     }
   }
 
-  const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: `txn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  const handleImport = async () => {
+    if (!rawInput.trim()) return
+    
+    setIsImporting(true)
+    setError(null)
+    try {
+      // Parse the raw input
+      const { bets: parsedBets, transactions: parsedTx } = parseBettingData(rawInput)
+      
+      // Get existing hashes from database
+      const { betHashes, txHashes } = await getExistingHashes()
+      
+      // Check for duplicates
+      const result = checkDuplicates(parsedBets, parsedTx, betHashes, txHashes)
+      setImportResult(result)
+      
+      // Save new entries to database
+      if (result.newBets.length > 0) {
+        await saveBets(result.newBets)
+      }
+      if (result.newTransactions.length > 0) {
+        await saveTransactions(result.newTransactions)
+      }
+      
+      // Refresh data from database
+      const [betsData, txData] = await Promise.all([
+        getAllBets(),
+        getAllTransactions()
+      ])
+      setDbBets(betsData)
+      setDbTransactions(txData)
+      
+      // Show import summary
+      setShowImportSummary(true)
+      setRawInput('')
+      
+    } catch (err) {
+      console.error('[v0] Error importing:', err)
+      setError('Failed to import data. Please check the format and try again.')
     }
-    setTransactions(prev => [newTransaction, ...prev])
+    setIsImporting(false)
   }
 
-  const handleRemoveTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id))
-  }
+  // Calculate bankroll info
+  const totalDeposits = dbTransactions
+    .filter(t => t.type === 'deposit')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
+  const totalWithdrawals = dbTransactions
+    .filter(t => t.type === 'withdrawal')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
+  const netDeposited = totalDeposits - totalWithdrawals
+  const currentBalance = dbBets.length > 0 
+    ? Number(dbBets[0].balance_after) || 0 
+    : 0
 
-  const settledBets = bets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
-  const pendingBets = bets.filter(b => b.type === 'stake')
+  const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
+  const pendingBets = allBets.filter(b => b.type === 'pending')
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your betting data...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-              Esports Bet Tracker
-            </h1>
-            <p className="text-muted-foreground">
-              Paste your Tab betting history to analyze your performance
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-primary/10 glow-cyan">
+              <Gamepad2 className="h-7 w-7 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                Esports Bet Tracker
+              </h1>
+              <p className="text-muted-foreground">
+                Track your Dota 2 & LoL bets with precision
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-primary/30 text-primary">
-              {settledBets.length} Settled
-            </Badge>
-            <Badge variant="outline" className="border-yellow-500/30 text-yellow-500">
-              {pendingBets.length} Pending
-            </Badge>
-            <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-              {transactions.length} Transactions
-            </Badge>
-          </div>
+          
+          {stats.totalBets > 0 && (
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Net Profit</p>
+                <p className={`text-2xl font-bold font-mono ${
+                  stats.totalProfit >= 0 ? 'text-chart-1 text-glow-green' : 'text-destructive text-glow-red'
+                }`}>
+                  {stats.totalProfit >= 0 ? '+' : ''}${stats.totalProfit.toFixed(2)}
+                </p>
+              </div>
+              <div className="h-12 w-px bg-border" />
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">ROI</p>
+                <p className={`text-2xl font-bold font-mono ${
+                  stats.roi >= 0 ? 'text-chart-1' : 'text-destructive'
+                }`}>
+                  {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Bankroll Summary - Always visible if we have data */}
-        {(bets.length > 0 || transactions.length > 0) && (
-          <BankrollSummary 
-            transactions={transactions} 
-            stats={stats} 
-            currentBalance={currentBalance}
-          />
+        {/* Quick Stats Bar */}
+        {stats.totalBets > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <QuickStat label="Total Bets" value={stats.totalBets.toString()} />
+            <QuickStat 
+              label="Win Rate" 
+              value={`${stats.winRate.toFixed(1)}%`} 
+              highlight={stats.winRate > 50}
+            />
+            <QuickStat label="Avg Odds" value={stats.averageOdds.toFixed(2)} />
+            <QuickStat label="Avg Stake" value={`$${stats.averageStake.toFixed(0)}`} />
+            <QuickStat 
+              label="Streak" 
+              value={`${stats.currentStreak.count} ${stats.currentStreak.type === 'win' ? 'W' : 'L'}`}
+              highlight={stats.currentStreak.type === 'win' && stats.currentStreak.count >= 3}
+              negative={stats.currentStreak.type === 'loss' && stats.currentStreak.count >= 3}
+            />
+            <QuickStat 
+              label="Pending" 
+              value={`${stats.pendingBets} bets`}
+              warning={stats.pendingBets > 0}
+              subtitle={stats.pendingStake > 0 ? `$${stats.pendingStake.toFixed(0)} at risk` : undefined}
+            />
+          </div>
         )}
 
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-4 bg-secondary/50">
-            <TabsTrigger value="bets">Betting Data</TabsTrigger>
-            <TabsTrigger value="transactions">Deposits & Withdrawals</TabsTrigger>
-            <TabsTrigger value="stats">Analytics</TabsTrigger>
+        {/* Error Alert */}
+        {error && (
+          <Card className="border-destructive/50 bg-destructive/10">
+            <CardContent className="flex items-center gap-3 py-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-sm text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Main Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="bg-secondary/50 p-1">
+            <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-card">
+              <BarChart3 className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="import" className="gap-2 data-[state=active]:bg-card">
+              <Upload className="h-4 w-4" />
+              Import
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-card">
+              <History className="h-4 w-4" />
+              History
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-card">
+              <TrendingUp className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
           </TabsList>
 
-          {/* Betting Data Tab */}
-          <TabsContent value="bets" className="space-y-6">
-            {/* Import Section */}
-            <Card className="border-border/50 bg-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Import Betting Data</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="relative">
-                  <Textarea
-                    placeholder="Paste your Tab betting history here...
-
-Example format:
-Win
-18/05/265:22AM
-Tundra Esports vs PlayTime (Bo3)
-Tundra Esports - Winner 2-way
-Monday, 18 May 1:40am
-1.67
-$44.00
-$73.48
-$573.48"
-                    value={rawInput}
-                    onChange={(e) => setRawInput(e.target.value)}
-                    className="min-h-[200px] bg-secondary/30 font-mono text-sm"
-                  />
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6">
+            {stats.totalBets > 0 ? (
+              <>
+                <StatsCards stats={stats} />
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <ProfitChart profitByDay={stats.profitByDay} />
+                  <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    onClick={handlePaste}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <ClipboardPaste className="h-4 w-4" />
-                    Paste from Clipboard
-                  </Button>
-                  <Button 
-                    onClick={handleImport}
-                    disabled={!rawInput.trim() || isImporting}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    {isImporting ? 'Processing...' : 'Import & Analyze'}
-                  </Button>
-                  {(bets.length > 0 || transactions.length > 0) && (
-                    <Button 
-                      onClick={handleClear}
-                      variant="destructive"
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Clear All Data
-                    </Button>
-                  )}
-                </div>
-                {bets.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    <Save className="mr-1 inline h-3 w-3" />
-                    Data is automatically saved to your browser
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Bets Table */}
-            {bets.length > 0 && (
-              <Tabs defaultValue="all" className="w-full">
-                <TabsList className="mb-4 bg-secondary/50">
-                  <TabsTrigger value="all">All Bets ({bets.length})</TabsTrigger>
-                  <TabsTrigger value="settled">Settled ({settledBets.length})</TabsTrigger>
-                  <TabsTrigger value="pending">Pending ({pendingBets.length})</TabsTrigger>
-                </TabsList>
-                <TabsContent value="all">
-                  <BetsTable bets={bets} />
-                </TabsContent>
-                <TabsContent value="settled">
-                  <BetsTable bets={settledBets} />
-                </TabsContent>
-                <TabsContent value="pending">
-                  <BetsTable bets={pendingBets} />
-                </TabsContent>
-              </Tabs>
-            )}
-
-            {/* Empty State */}
-            {bets.length === 0 && (
-              <Card className="border-dashed border-border/50 bg-card/50">
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="mb-4 rounded-full bg-secondary p-4">
-                    <ClipboardPaste className="h-8 w-8 text-muted-foreground" />
+                <BetsTable bets={allBets.slice(0, 10)} title="Recent Bets" />
+              </>
+            ) : (
+              <Card className="stat-card">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="p-4 rounded-full bg-primary/10 mb-4 glow-cyan">
+                    <Zap className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground">No betting data yet</h3>
-                  <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                    Copy your betting history from Tab and paste it above to see your performance metrics,
-                    win rate, ROI, and more.
+                  <h3 className="text-lg font-medium mb-2">No betting data yet</h3>
+                  <p className="text-muted-foreground text-center max-w-sm mb-4">
+                    Import your betting history from Tab to start tracking your esports bets
                   </p>
+                  <Button onClick={() => setActiveTab('import')} className="glow-cyan">
+                    Import Data
+                  </Button>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
-          {/* Transactions Tab */}
-          <TabsContent value="transactions" className="space-y-6">
-            <Transactions
-              transactions={transactions}
-              onAddTransaction={handleAddTransaction}
-              onRemoveTransaction={handleRemoveTransaction}
-            />
+          {/* Import Tab */}
+          <TabsContent value="import" className="space-y-4">
+            <Card className="stat-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardPaste className="h-5 w-5 text-primary" />
+                  Import from Tab
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Copy your betting history from Tab and paste it below. The system will automatically 
+                  detect bets, deposits, and withdrawals. <span className="text-primary">Duplicate entries will be identified and skipped.</span>
+                </p>
+                
+                <Button variant="outline" onClick={handlePaste} className="gap-2">
+                  <ClipboardPaste className="h-4 w-4" />
+                  Paste from Clipboard
+                </Button>
+
+                <Textarea
+                  placeholder={`Paste your Tab betting history here...
+
+The parser will automatically detect:
+- Wins, Losses, Pending bets
+- Deposits and Withdrawals
+- Match details, odds, stakes
+
+Duplicate bets are detected by date+time+match+odds+stake
+and will be skipped if already imported.`}
+                  value={rawInput}
+                  onChange={(e) => setRawInput(e.target.value)}
+                  className="min-h-[300px] font-mono text-sm bg-input"
+                />
+
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    {rawInput.length > 0 && (
+                      <span>{rawInput.split('\n').filter(l => l.trim()).length} lines pasted</span>
+                    )}
+                  </div>
+                  <Button 
+                    onClick={handleImport} 
+                    disabled={isImporting || !rawInput.trim()}
+                    className="gap-2"
+                  >
+                    {isImporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Import & Analyze
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {showImportSummary && importResult && (
+              <ImportSummary 
+                result={importResult} 
+                onClose={() => setShowImportSummary(false)}
+              />
+            )}
+          </TabsContent>
+
+          {/* History Tab */}
+          <TabsContent value="history" className="space-y-6">
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="mb-4 bg-secondary/50">
+                <TabsTrigger value="all">All Bets ({allBets.length})</TabsTrigger>
+                <TabsTrigger value="settled">Settled ({settledBets.length})</TabsTrigger>
+                <TabsTrigger value="pending">Pending ({pendingBets.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="all">
+                <BetsTable bets={allBets} title="All Betting History" />
+              </TabsContent>
+              <TabsContent value="settled">
+                <BetsTable bets={settledBets} title="Settled Bets" />
+              </TabsContent>
+              <TabsContent value="pending">
+                <BetsTable bets={pendingBets} title="Pending Bets" />
+              </TabsContent>
+            </Tabs>
+            
+            {dbTransactions.length > 0 && (
+              <Card className="stat-card">
+                <CardHeader>
+                  <CardTitle>Deposits & Withdrawals</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-2">
+                      {dbTransactions.map((tx) => (
+                        <div 
+                          key={tx.id}
+                          className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                            tx.type === 'deposit' 
+                              ? 'bg-chart-1/10 border-l-2 border-chart-1 hover:bg-chart-1/15' 
+                              : 'bg-destructive/10 border-l-2 border-destructive hover:bg-destructive/15'
+                          }`}
+                        >
+                          <div>
+                            <p className="font-medium capitalize">{tx.type}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {tx.date} {tx.time || ''}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-mono font-bold ${
+                              tx.type === 'deposit' ? 'text-chart-1' : 'text-destructive'
+                            }`}>
+                              {tx.type === 'deposit' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Bal: ${Number(tx.balance_after || 0).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Analytics Tab */}
-          <TabsContent value="stats" className="space-y-6">
-            {bets.length > 0 ? (
+          <TabsContent value="analytics" className="space-y-6">
+            {stats.totalBets > 0 ? (
               <>
-                <StatsCards stats={stats} />
-                
+                <StatsCards stats={stats} detailed />
                 <div className="grid gap-6 lg:grid-cols-2">
                   <ProfitChart profitByDay={stats.profitByDay} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
+                
+                {/* Bankroll Summary */}
+                <Card className="stat-card">
+                  <CardHeader>
+                    <CardTitle>Bankroll Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Current Balance</p>
+                        <p className="text-3xl font-bold font-mono text-primary">
+                          ${currentBalance.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Total Deposited</p>
+                        <p className="text-3xl font-bold font-mono text-chart-1">
+                          ${totalDeposits.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Total Withdrawn</p>
+                        <p className="text-3xl font-bold font-mono text-destructive">
+                          ${totalWithdrawals.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">True P/L</p>
+                        <p className={`text-3xl font-bold font-mono ${
+                          currentBalance - netDeposited >= 0 ? 'text-chart-1 text-glow-green' : 'text-destructive text-glow-red'
+                        }`}>
+                          {currentBalance - netDeposited >= 0 ? '+' : ''}
+                          ${(currentBalance - netDeposited).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             ) : (
-              <Card className="border-dashed border-border/50 bg-card/50">
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="mb-4 rounded-full bg-secondary p-4">
-                    <ClipboardPaste className="h-8 w-8 text-muted-foreground" />
+              <Card className="stat-card">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="p-4 rounded-full bg-primary/10 mb-4">
+                    <TrendingUp className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground">No analytics available</h3>
-                  <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                  <h3 className="text-lg font-medium mb-2">No analytics available</h3>
+                  <p className="text-muted-foreground text-center max-w-sm">
                     Import your betting data first to see detailed analytics and performance metrics.
                   </p>
                 </CardContent>
@@ -305,6 +467,38 @@ $573.48"
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  )
+}
+
+function QuickStat({ 
+  label, 
+  value, 
+  highlight = false,
+  negative = false,
+  warning = false,
+  subtitle
+}: { 
+  label: string
+  value: string
+  highlight?: boolean
+  negative?: boolean
+  warning?: boolean
+  subtitle?: string
+}) {
+  return (
+    <div className={`p-3 rounded-lg bg-secondary/50 transition-all hover:bg-secondary/70 ${
+      highlight ? 'ring-1 ring-chart-1/50' : ''
+    } ${negative ? 'ring-1 ring-destructive/50' : ''} ${warning ? 'ring-1 ring-warning/50' : ''}`}>
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className={`text-lg font-bold font-mono ${
+        highlight ? 'text-chart-1' : ''
+      } ${negative ? 'text-destructive' : ''} ${warning ? 'text-warning' : ''}`}>
+        {value}
+      </p>
+      {subtitle && (
+        <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+      )}
     </div>
   )
 }

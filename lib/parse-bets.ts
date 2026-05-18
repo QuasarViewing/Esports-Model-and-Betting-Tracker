@@ -1,6 +1,9 @@
+import crypto from 'crypto'
+
 export interface ParsedBet {
   id: string
-  type: 'win' | 'loss' | 'stake' | 'withdraw' | 'deposit' | 'cashed_out' | 'pending'
+  hash: string
+  type: 'win' | 'loss' | 'pending' | 'cashed_out'
   date: Date
   dateString: string
   timeString: string
@@ -17,10 +20,31 @@ export interface ParsedBet {
   betType: 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other'
 }
 
+export interface ParsedTransaction {
+  id: string
+  hash: string
+  type: 'deposit' | 'withdrawal'
+  date: Date
+  dateString: string
+  timeString: string
+  amount: number
+  balanceAfter: number
+}
+
+export interface ImportResult {
+  bets: ParsedBet[]
+  transactions: ParsedTransaction[]
+  duplicateBets: ParsedBet[]
+  duplicateTransactions: ParsedTransaction[]
+  newBets: ParsedBet[]
+  newTransactions: ParsedTransaction[]
+}
+
 export interface BettingStats {
   totalBets: number
   totalWins: number
   totalLosses: number
+  pendingBets: number
   winRate: number
   totalStaked: number
   totalProfit: number
@@ -30,25 +54,46 @@ export interface BettingStats {
   biggestWin: number
   biggestLoss: number
   currentStreak: { type: 'win' | 'loss'; count: number }
-  profitByGame: Record<string, number>
+  profitByGame: Record<string, { profit: number; bets: number; wins: number }>
   profitByDay: { date: string; profit: number; cumulative: number }[]
   impliedProbabilityVsActual: number
+  pendingStake: number
 }
 
 const DOTA_TEAMS = [
   'Tundra', 'Natus Vincere', 'Na\'Vi', 'Team Liquid', 'Team Spirit', 'Team Falcons',
   'Xtreme Gaming', 'BetBoom', 'PARIVISION', 'PlayTime', 'GamerLegion', 'Aurora',
-  'Virtus.pro', 'VP', 'Cloud9', 'Vici Gaming', 'FURIA', 'ex-HEROIC', 'REKONIX'
+  'Virtus.pro', 'VP', 'Cloud9', 'Vici Gaming', 'FURIA', 'ex-HEROIC', 'REKONIX',
+  'Gaimin Gladiators', '9Pandas', 'OG', 'Quest', 'Entity', 'Nigma'
 ]
 
 const LOL_TEAMS = [
   'T1', 'Gen.G', 'DRX', 'KT Rolster', 'Hanwha Life', 'HLE', 'LOUD', '100 Thieves',
-  'Shopify Rebellion', 'Disguised', 'MIBR'
+  'Shopify Rebellion', 'Disguised', 'MIBR', 'JDG', 'Weibo', 'Top Esports', 'TES',
+  'Bilibili', 'LNG', 'NRG', 'Cloud9', 'FlyQuest', 'Fnatic', 'G2', 'MAD Lions',
+  'SK Gaming', 'Rogue', 'Team Vitality'
 ]
+
+const LOL_REGION_TEAMS: Record<string, string[]> = {
+  'LCK': ['T1', 'Gen.G', 'DRX', 'KT Rolster', 'Hanwha Life', 'HLE', 'Dplus', 'Kwangdong Freecs', 'OK BRION', 'Nongshim'],
+  'LPL': ['JDG', 'Weibo', 'Top Esports', 'TES', 'Bilibili', 'LNG', 'Royal Never Give Up', 'EDward Gaming'],
+  'LEC': ['Fnatic', 'G2', 'MAD Lions', 'SK Gaming', 'Rogue', 'Team Vitality', 'Excel', 'Astralis'],
+  'LCS': ['100 Thieves', 'Cloud9', 'FlyQuest', 'NRG', 'Dignitas', 'Immortals', 'Team Liquid']
+}
 
 const CSGO_TEAMS = [
   'Navi', 'FaZe', 'G2', 'Vitality', 'Astralis', 'ENCE', 'Heroic', 'Cloud9'
 ]
+
+function generateHash(date: string, time: string, match: string, odds: number, stake: number): string {
+  const str = `${date}|${time}|${match}|${odds}|${stake}`
+  return crypto.createHash('md5').update(str).digest('hex').substring(0, 16)
+}
+
+function generateTxHash(date: string, time: string, type: string, amount: number): string {
+  const str = `${date}|${time}|${type}|${amount}`
+  return crypto.createHash('md5').update(str).digest('hex').substring(0, 16)
+}
 
 function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
   const text = `${match} ${selection}`.toLowerCase()
@@ -67,130 +112,51 @@ function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' 
   
   if (text.includes('valorant')) return 'valorant'
   
-  return 'dota2' // Default to dota2 since that's what the user plays
+  return 'dota2'
 }
 
-function detectTournament(match: string): string {
-  if (match.toLowerCase().includes('dreamleague')) return 'DreamLeague Season 29'
-  if (match.toLowerCase().includes('lck')) return 'LCK'
-  if (match.toLowerCase().includes('lpl')) return 'LPL'
-  if (match.toLowerCase().includes('lcs')) return 'LCS'
-  return 'DreamLeague Season 29' // Default tournament
+function detectLoLRegion(match: string, selection: string): string | null {
+  const text = `${match} ${selection}`.toLowerCase()
+  
+  for (const [region, teams] of Object.entries(LOL_REGION_TEAMS)) {
+    for (const team of teams) {
+      if (text.includes(team.toLowerCase())) return region
+    }
+  }
+  return null
+}
+
+function detectTournament(match: string, selection: string, game: string): string {
+  const text = `${match} ${selection}`.toLowerCase()
+  
+  if (game === 'lol') {
+    const region = detectLoLRegion(match, selection)
+    if (region) return region
+  }
+  
+  if (text.includes('dreamleague')) return 'DreamLeague Season 29'
+  if (text.includes('blast')) return 'BLAST'
+  if (text.includes('ti') || text.includes('international')) return 'The International'
+  if (text.includes('esl')) return 'ESL'
+  if (text.includes('msi')) return 'MSI'
+  if (text.includes('worlds')) return 'Worlds'
+  
+  return game === 'dota2' ? 'DreamLeague Season 29' : 'Unknown'
 }
 
 function detectBetType(selection: string): 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other' {
   const lower = selection.toLowerCase()
-  if (lower.includes('handicap') || lower.includes('+') || lower.includes('-')) return 'handicap'
+  if (lower.includes('handicap') || /[+-]\d+\.?\d*/.test(lower)) return 'handicap'
   if (lower.includes('over') || lower.includes('under')) return 'over_under'
   if (lower.includes('game') && lower.includes('winner')) return 'game_winner'
-  if (lower.includes('winner')) return 'winner'
-  return 'other'
-}
-
-export function parseBettingData(rawText: string): ParsedBet[] {
-  const lines = rawText.trim().split('\n')
-  const bets: ParsedBet[] = []
-  
-  let i = 0
-  while (i < lines.length) {
-    const typeLine = lines[i]?.trim().toLowerCase()
-    
-    if (!typeLine) {
-      i++
-      continue
-    }
-    
-    // Detect transaction type
-    let type: ParsedBet['type'] | null = null
-    if (typeLine === 'win') type = 'win'
-    else if (typeLine === 'loss') type = 'loss'
-    else if (typeLine === 'stake') type = 'stake'
-    else if (typeLine === 'withdraw') type = 'withdraw'
-    else if (typeLine === 'deposit') type = 'deposit'
-    else if (typeLine === 'cashed out') type = 'cashed_out'
-    else if (typeLine === 'pending') type = 'pending'
-    
-    if (!type) {
-      i++
-      continue
-    }
-    
-    // Parse the data based on type
-    if (type === 'withdraw' || type === 'deposit') {
-      // Format: type, date, "Withdrawal/Deposit", status, -, amount, balance change, balance
-      const dateStr = lines[i + 1]?.trim() || ''
-      const amount = parseFloat(lines[i + 5]?.replace(/[^0-9.-]/g, '') || '0')
-      const balanceChange = parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0')
-      const balance = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      const [datePart, timePart] = dateStr.split(/(?=\d{1,2}:\d{2}(?:AM|PM))/i)
-      
-      bets.push({
-        id: `${type}-${dateStr}-${i}`,
-        type,
-        date: parseDate(dateStr),
-        dateString: datePart?.trim() || dateStr,
-        timeString: timePart?.trim() || '',
-        match: type === 'withdraw' ? 'Withdrawal' : 'Deposit',
-        selection: '',
-        eventDate: '',
-        odds: 0,
-        stake: Math.abs(amount),
-        profitLoss: balanceChange,
-        balance,
-        game: 'other',
-        tournament: '',
-        isLive: false,
-        betType: 'other'
-      })
-      
-      i += 8
-    } else {
-      // Bet format: type, date, match, selection, eventDate, odds, stake, profit, balance
-      const dateStr = lines[i + 1]?.trim() || ''
-      const match = lines[i + 2]?.trim() || ''
-      const selection = lines[i + 3]?.trim() || ''
-      const eventDate = lines[i + 4]?.trim() || ''
-      const odds = parseFloat(lines[i + 5]?.trim() || '0')
-      const stake = parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0')
-      const profitLoss = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
-      const balance = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      const [datePart, timePart] = dateStr.split(/(?=\d{1,2}:\d{2}(?:AM|PM))/i)
-      
-      if (match && odds > 0) {
-        bets.push({
-          id: `${type}-${dateStr}-${match}-${i}`,
-          type,
-          date: parseDate(dateStr),
-          dateString: datePart?.trim() || dateStr,
-          timeString: timePart?.trim() || '',
-          match,
-          selection,
-          eventDate,
-          odds,
-          stake: Math.abs(stake),
-          profitLoss,
-          balance,
-          game: detectGame(match, selection),
-          tournament: detectTournament(match),
-          isLive: match.toLowerCase().includes('live'),
-          betType: detectBetType(selection)
-        })
-      }
-      
-      i += 9
-    }
-  }
-  
-  return bets.reverse() // Return in chronological order
+  if (lower.includes('winner') || lower.includes('2-way')) return 'winner'
+  return 'winner'
 }
 
 function parseDate(dateStr: string): Date {
-  // Format: "18/05/262:03PM" -> parse to Date
   const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})(\d{1,2}):(\d{2})(AM|PM)/i)
   if (match) {
-    let [, day, month, year, hours, minutes, period] = match
+    const [, day, month, year, hours, minutes, period] = match
     let h = parseInt(hours)
     if (period.toUpperCase() === 'PM' && h !== 12) h += 12
     if (period.toUpperCase() === 'AM' && h === 12) h = 0
@@ -199,16 +165,187 @@ function parseDate(dateStr: string): Date {
   return new Date()
 }
 
+function parseDateString(dateStr: string): { datePart: string; timePart: string } {
+  const match = dateStr.match(/^([\d/]+)(\d{1,2}:\d{2}(?:AM|PM)?)$/i)
+  if (match) {
+    return { datePart: match[1], timePart: match[2] }
+  }
+  return { datePart: dateStr, timePart: '' }
+}
+
+export function parseBettingData(rawText: string): { bets: ParsedBet[]; transactions: ParsedTransaction[] } {
+  const lines = rawText.trim().split('\n').map(l => l.trim()).filter(l => l)
+  const bets: ParsedBet[] = []
+  const transactions: ParsedTransaction[] = []
+  
+  // Track seen bets by their unique signature to handle the duplicate pending/settled issue
+  const seenBets = new Map<string, ParsedBet>()
+  
+  let i = 0
+  while (i < lines.length) {
+    const typeLine = lines[i]?.toLowerCase()
+    
+    if (!typeLine) {
+      i++
+      continue
+    }
+    
+    // Detect entry type
+    if (typeLine === 'withdraw' || typeLine === 'deposit') {
+      // Transaction format: type, date, "Withdrawal/Deposit", status, -, amount, balance change, balance
+      const dateStr = lines[i + 1] || ''
+      const { datePart, timePart } = parseDateString(dateStr)
+      const amount = Math.abs(parseFloat(lines[i + 5]?.replace(/[^0-9.-]/g, '') || '0'))
+      const balance = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
+      
+      const hash = generateTxHash(datePart, timePart, typeLine, amount)
+      
+      transactions.push({
+        id: `tx-${Date.now()}-${i}`,
+        hash,
+        type: typeLine === 'withdraw' ? 'withdrawal' : 'deposit',
+        date: parseDate(dateStr),
+        dateString: datePart,
+        timeString: timePart,
+        amount,
+        balanceAfter: balance
+      })
+      
+      i += 8
+    } else if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
+      // Bet format - need to handle the duplicate issue
+      const dateStr = lines[i + 1] || ''
+      const { datePart, timePart } = parseDateString(dateStr)
+      const match = lines[i + 2] || ''
+      const selection = lines[i + 3] || ''
+      const eventDate = lines[i + 4] || ''
+      const odds = parseFloat(lines[i + 5] || '0')
+      const stake = Math.abs(parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'))
+      const profitStr = lines[i + 7]?.trim() || '-'
+      const balance = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
+      
+      // KEY FIX: Determine actual status from profit field, not just the type line
+      // If profit shows "-" it's pending, if it shows a number it's settled
+      let actualType: ParsedBet['type']
+      let profitLoss = 0
+      
+      if (profitStr === '-' || profitStr === '') {
+        actualType = 'pending'
+        profitLoss = 0
+      } else {
+        profitLoss = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        if (typeLine === 'cashed out') {
+          actualType = 'cashed_out'
+        } else if (profitLoss > 0) {
+          actualType = 'win'
+        } else {
+          actualType = 'loss'
+        }
+      }
+      
+      if (match && odds > 0 && stake > 0) {
+        const game = detectGame(match, selection)
+        const hash = generateHash(datePart, timePart, match, odds, stake)
+        
+        // Create bet signature for deduplication (same bet placed)
+        const betSignature = `${match}|${selection}|${odds}|${stake}`
+        
+        const bet: ParsedBet = {
+          id: `bet-${Date.now()}-${i}`,
+          hash,
+          type: actualType,
+          date: parseDate(dateStr),
+          dateString: datePart,
+          timeString: timePart,
+          match,
+          selection,
+          eventDate,
+          odds,
+          stake,
+          profitLoss,
+          balance,
+          game,
+          tournament: detectTournament(match, selection, game),
+          isLive: match.toLowerCase().includes('live'),
+          betType: detectBetType(selection)
+        }
+        
+        // If we've seen this bet before, keep the settled version
+        const existing = seenBets.get(betSignature)
+        if (existing) {
+          // If new one is settled and old one is pending, replace
+          if (actualType !== 'pending' && existing.type === 'pending') {
+            seenBets.set(betSignature, bet)
+          }
+          // Otherwise keep the existing (already settled or both pending)
+        } else {
+          seenBets.set(betSignature, bet)
+        }
+      }
+      
+      i += 9
+    } else {
+      i++
+    }
+  }
+  
+  return {
+    bets: Array.from(seenBets.values()).sort((a, b) => a.date.getTime() - b.date.getTime()),
+    transactions: transactions.sort((a, b) => a.date.getTime() - b.date.getTime())
+  }
+}
+
+export function checkDuplicates(
+  newBets: ParsedBet[],
+  newTransactions: ParsedTransaction[],
+  existingHashes: Set<string>,
+  existingTxHashes: Set<string>
+): ImportResult {
+  const duplicateBets: ParsedBet[] = []
+  const uniqueBets: ParsedBet[] = []
+  const duplicateTransactions: ParsedTransaction[] = []
+  const uniqueTransactions: ParsedTransaction[] = []
+  
+  for (const bet of newBets) {
+    if (existingHashes.has(bet.hash)) {
+      duplicateBets.push(bet)
+    } else {
+      uniqueBets.push(bet)
+    }
+  }
+  
+  for (const tx of newTransactions) {
+    if (existingTxHashes.has(tx.hash)) {
+      duplicateTransactions.push(tx)
+    } else {
+      uniqueTransactions.push(tx)
+    }
+  }
+  
+  return {
+    bets: newBets,
+    transactions: newTransactions,
+    duplicateBets,
+    duplicateTransactions,
+    newBets: uniqueBets,
+    newTransactions: uniqueTransactions
+  }
+}
+
 export function calculateStats(bets: ParsedBet[]): BettingStats {
   const settledBets = bets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
+  const pendingBets = bets.filter(b => b.type === 'pending')
   const wins = settledBets.filter(b => b.type === 'win' || (b.type === 'cashed_out' && b.profitLoss > 0))
   const losses = settledBets.filter(b => b.type === 'loss')
   
   const totalStaked = settledBets.reduce((sum, b) => sum + b.stake, 0)
+  const pendingStake = pendingBets.reduce((sum, b) => sum + b.stake, 0)
+  
+  // Calculate total profit
   const totalProfit = settledBets.reduce((sum, b) => {
-    if (b.type === 'win') return sum + (b.profitLoss - b.stake)
+    if (b.type === 'win') return sum + b.profitLoss
     if (b.type === 'cashed_out') return sum + b.profitLoss
-    if (b.type === 'loss') return sum - b.stake
+    if (b.type === 'loss') return sum + b.profitLoss // profitLoss is negative for losses
     return sum
   }, 0)
   
@@ -217,37 +354,44 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
     : 0
   
   // Calculate profit by game
-  const profitByGame: Record<string, number> = {}
+  const profitByGame: Record<string, { profit: number; bets: number; wins: number }> = {}
   settledBets.forEach(b => {
-    if (!profitByGame[b.game]) profitByGame[b.game] = 0
-    if (b.type === 'win') profitByGame[b.game] += (b.profitLoss - b.stake)
-    else if (b.type === 'loss') profitByGame[b.game] -= b.stake
-    else if (b.type === 'cashed_out') profitByGame[b.game] += b.profitLoss
+    if (!profitByGame[b.game]) profitByGame[b.game] = { profit: 0, bets: 0, wins: 0 }
+    profitByGame[b.game].bets++
+    profitByGame[b.game].profit += b.profitLoss
+    if (b.type === 'win' || (b.type === 'cashed_out' && b.profitLoss > 0)) {
+      profitByGame[b.game].wins++
+    }
   })
   
   // Calculate profit by day
   const profitByDayMap = new Map<string, number>()
   settledBets.forEach(b => {
-    const day = b.dateString.split(/\d{1,2}:\d{2}/)[0]?.trim() || b.dateString
+    const day = b.dateString
     if (!profitByDayMap.has(day)) profitByDayMap.set(day, 0)
-    if (b.type === 'win') profitByDayMap.set(day, profitByDayMap.get(day)! + (b.profitLoss - b.stake))
-    else if (b.type === 'loss') profitByDayMap.set(day, profitByDayMap.get(day)! - b.stake)
-    else if (b.type === 'cashed_out') profitByDayMap.set(day, profitByDayMap.get(day)! + b.profitLoss)
+    profitByDayMap.set(day, profitByDayMap.get(day)! + b.profitLoss)
   })
   
   let cumulative = 0
-  const profitByDay = Array.from(profitByDayMap.entries()).map(([date, profit]) => {
-    cumulative += profit
-    return { date, profit, cumulative }
-  })
+  const profitByDay = Array.from(profitByDayMap.entries())
+    .sort((a, b) => {
+      const dateA = new Date(a[0].split('/').reverse().join('-'))
+      const dateB = new Date(b[0].split('/').reverse().join('-'))
+      return dateA.getTime() - dateB.getTime()
+    })
+    .map(([date, profit]) => {
+      cumulative += profit
+      return { date, profit, cumulative }
+    })
   
   // Current streak
   let streakType: 'win' | 'loss' = 'win'
   let streakCount = 0
-  for (let i = settledBets.length - 1; i >= 0; i--) {
-    const bet = settledBets[i]
+  const sortedSettled = [...settledBets].sort((a, b) => b.date.getTime() - a.date.getTime())
+  for (let i = 0; i < sortedSettled.length; i++) {
+    const bet = sortedSettled[i]
     const isWin = bet.type === 'win' || (bet.type === 'cashed_out' && bet.profitLoss > 0)
-    if (i === settledBets.length - 1) {
+    if (i === 0) {
       streakType = isWin ? 'win' : 'loss'
       streakCount = 1
     } else if ((isWin && streakType === 'win') || (!isWin && streakType === 'loss')) {
@@ -258,8 +402,8 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
   }
   
   // Biggest win/loss
-  const biggestWin = Math.max(...wins.map(b => b.type === 'win' ? b.profitLoss - b.stake : b.profitLoss), 0)
-  const biggestLoss = Math.max(...losses.map(b => b.stake), 0)
+  const biggestWin = Math.max(...wins.map(b => b.profitLoss), 0)
+  const biggestLoss = Math.abs(Math.min(...losses.map(b => b.profitLoss), 0))
   
   // Implied probability vs actual
   const impliedProb = settledBets.length > 0
@@ -271,6 +415,7 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
     totalBets: settledBets.length,
     totalWins: wins.length,
     totalLosses: losses.length,
+    pendingBets: pendingBets.length,
     winRate: settledBets.length > 0 ? (wins.length / settledBets.length) * 100 : 0,
     totalStaked,
     totalProfit,
@@ -282,6 +427,7 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
     currentStreak: { type: streakType, count: streakCount },
     profitByGame,
     profitByDay,
-    impliedProbabilityVsActual: actualWinRate - impliedProb
+    impliedProbabilityVsActual: (actualWinRate - impliedProb) * 100,
+    pendingStake
   }
 }

@@ -4,71 +4,95 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.098 0.005 260);
+  /* Dark esports theme - deep black with cyan/green accents */
+  --background: oklch(0.08 0.01 240);
   --foreground: oklch(0.95 0 0);
-  --card: oklch(0.14 0.006 260);
+  --card: oklch(0.12 0.015 240);
   --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.14 0.006 260);
+  --popover: oklch(0.12 0.015 240);
   --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.72 0.19 142);
-  --primary-foreground: oklch(0.1 0.02 142);
-  --secondary: oklch(0.22 0.006 260);
+  
+  /* Primary - Cyan/Teal for esports feel */
+  --primary: oklch(0.75 0.15 180);
+  --primary-foreground: oklch(0.1 0.02 180);
+  
+  --secondary: oklch(0.18 0.01 240);
   --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.22 0.006 260);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.72 0.19 142);
-  --accent-foreground: oklch(0.1 0.02 142);
-  --destructive: oklch(0.65 0.2 25);
+  --muted: oklch(0.18 0.01 240);
+  --muted-foreground: oklch(0.55 0 0);
+  
+  /* Accent - Bright cyan glow */
+  --accent: oklch(0.75 0.15 180);
+  --accent-foreground: oklch(0.1 0.02 180);
+  
+  /* Destructive - Red for losses */
+  --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0.008 260);
-  --input: oklch(0.22 0.006 260);
-  --ring: oklch(0.72 0.19 142);
-  --chart-1: oklch(0.72 0.19 142);
-  --chart-2: oklch(0.65 0.2 25);
-  --chart-3: oklch(0.7 0.15 250);
-  --chart-4: oklch(0.75 0.15 60);
-  --chart-5: oklch(0.6 0.2 300);
-  --radius: 0.5rem;
-  --success: oklch(0.72 0.19 142);
-  --success-foreground: oklch(0.1 0.02 142);
-  --warning: oklch(0.75 0.15 60);
-  --warning-foreground: oklch(0.15 0.02 60);
+  
+  --border: oklch(0.22 0.015 240);
+  --input: oklch(0.15 0.01 240);
+  --ring: oklch(0.75 0.15 180);
+  
+  /* Chart colors */
+  --chart-1: oklch(0.72 0.16 155); /* Green - wins */
+  --chart-2: oklch(0.6 0.22 25);   /* Red - losses */
+  --chart-3: oklch(0.75 0.15 180); /* Cyan - primary */
+  --chart-4: oklch(0.7 0.15 280);  /* Purple - Dota */
+  --chart-5: oklch(0.7 0.15 230);  /* Blue - LoL */
+  
+  --radius: 0.625rem;
+  
+  /* Status colors */
+  --success: oklch(0.72 0.16 155);
+  --success-foreground: oklch(0.1 0.02 155);
+  --warning: oklch(0.75 0.15 85);
+  --warning-foreground: oklch(0.15 0.02 85);
+  
+  /* Game-specific colors */
+  --dota: oklch(0.6 0.18 25);
+  --lol: oklch(0.65 0.15 230);
+  --csgo: oklch(0.7 0.12 55);
+  
+  /* Glow effects */
+  --glow-green: oklch(0.72 0.16 155 / 0.4);
+  --glow-red: oklch(0.6 0.22 25 / 0.4);
+  --glow-cyan: oklch(0.75 0.15 180 / 0.3);
 }
 
 .dark {
-  --background: oklch(0.098 0.005 260);
+  --background: oklch(0.08 0.01 240);
   --foreground: oklch(0.95 0 0);
-  --card: oklch(0.14 0.006 260);
+  --card: oklch(0.12 0.015 240);
   --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.14 0.006 260);
+  --popover: oklch(0.12 0.015 240);
   --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.72 0.19 142);
-  --primary-foreground: oklch(0.1 0.02 142);
-  --secondary: oklch(0.22 0.006 260);
+  --primary: oklch(0.75 0.15 180);
+  --primary-foreground: oklch(0.1 0.02 180);
+  --secondary: oklch(0.18 0.01 240);
   --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.22 0.006 260);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.72 0.19 142);
-  --accent-foreground: oklch(0.1 0.02 142);
-  --destructive: oklch(0.65 0.2 25);
+  --muted: oklch(0.18 0.01 240);
+  --muted-foreground: oklch(0.55 0 0);
+  --accent: oklch(0.75 0.15 180);
+  --accent-foreground: oklch(0.1 0.02 180);
+  --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0.008 260);
-  --input: oklch(0.22 0.006 260);
-  --ring: oklch(0.72 0.19 142);
-  --chart-1: oklch(0.72 0.19 142);
-  --chart-2: oklch(0.65 0.2 25);
-  --chart-3: oklch(0.7 0.15 250);
-  --chart-4: oklch(0.75 0.15 60);
-  --chart-5: oklch(0.6 0.2 300);
-  --success: oklch(0.72 0.19 142);
-  --success-foreground: oklch(0.1 0.02 142);
-  --warning: oklch(0.75 0.15 60);
-  --warning-foreground: oklch(0.15 0.02 60);
+  --border: oklch(0.22 0.015 240);
+  --input: oklch(0.15 0.01 240);
+  --ring: oklch(0.75 0.15 180);
+  --chart-1: oklch(0.72 0.16 155);
+  --chart-2: oklch(0.6 0.22 25);
+  --chart-3: oklch(0.75 0.15 180);
+  --chart-4: oklch(0.7 0.15 280);
+  --chart-5: oklch(0.7 0.15 230);
+  --success: oklch(0.72 0.16 155);
+  --success-foreground: oklch(0.1 0.02 155);
+  --warning: oklch(0.75 0.15 85);
+  --warning-foreground: oklch(0.15 0.02 85);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -108,6 +132,52 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
+}
+
+/* Custom utility classes for esports aesthetic */
+@layer utilities {
+  .glow-green {
+    box-shadow: 0 0 20px var(--glow-green), 0 0 40px var(--glow-green);
+  }
+  .glow-red {
+    box-shadow: 0 0 20px var(--glow-red), 0 0 40px var(--glow-red);
+  }
+  .glow-cyan {
+    box-shadow: 0 0 15px var(--glow-cyan);
+  }
+  .text-glow-green {
+    text-shadow: 0 0 10px var(--glow-green);
+  }
+  .text-glow-red {
+    text-shadow: 0 0 10px var(--glow-red);
+  }
+  .gradient-border {
+    background: linear-gradient(var(--card), var(--card)) padding-box,
+                linear-gradient(135deg, oklch(0.75 0.15 180), oklch(0.72 0.16 155)) border-box;
+    border: 1px solid transparent;
+  }
+  .stat-card {
+    @apply relative overflow-hidden;
+    background: linear-gradient(145deg, oklch(0.14 0.015 240), oklch(0.1 0.01 240));
+  }
+  .stat-card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, oklch(0.75 0.15 180 / 0.1), transparent);
+  }
+  .stat-card:hover::before {
+    @apply opacity-100;
+  }
+  .animate-number {
+    animation: countUp 0.6s ease-out;
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .game-dota { border-left: 3px solid oklch(0.6 0.18 25); }
+  .game-lol { border-left: 3px solid oklch(0.65 0.15 230); }
+  .game-csgo { border-left: 3px solid oklch(0.7 0.12 55); }
 }
