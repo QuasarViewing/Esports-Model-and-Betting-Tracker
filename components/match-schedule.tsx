@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Clock, Trophy, Tv } from 'lucide-react'
+import { Calendar, Clock, Trophy } from 'lucide-react'
+import { getUpcomingMatches, getTournaments } from '@/lib/upcoming-matches'
 
 interface UpcomingMatch {
   team1: string
@@ -34,20 +35,29 @@ interface Tournament {
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export function MatchSchedule() {
-  const [game, setGame] = useState<string>('dota2')
+  const [game, setGame] = useState<'dota2' | 'lol' | 'csgo' | 'valorant'>('dota2')
   const [view, setView] = useState<'matches' | 'tournaments'>('matches')
 
-  const { data: matches, isLoading: matchesLoading } = useSWR<UpcomingMatch[]>(
+  // Use seeded data as default, with API fallback
+  const seedMatches = getUpcomingMatches(game)
+  const seedTournaments = getTournaments(game)
+
+  const { data: apiMatches, isLoading: matchesLoading } = useSWR<UpcomingMatch[]>(
     view === 'matches' ? `/api/liquipedia/schedule?game=${game}&limit=15` : null,
     fetcher,
     { revalidateOnFocus: false }
   )
 
-  const { data: tournaments, isLoading: tournamentsLoading } = useSWR<Tournament[]>(
+  const { data: apiTournaments, isLoading: tournamentsLoading } = useSWR<Tournament[]>(
     view === 'tournaments' ? `/api/liquipedia/tournaments?game=${game}&status=ongoing` : null,
     fetcher,
     { revalidateOnFocus: false }
   )
+
+  // Use API data if available, otherwise use seeded data
+  const matches = apiMatches && apiMatches.length > 0 ? apiMatches : seedMatches
+  const tournaments = apiTournaments && apiTournaments.length > 0 ? apiTournaments : seedTournaments
+  const isLoading = view === 'matches' ? matchesLoading : tournamentsLoading
 
   const formatDate = (dateStr: string) => {
     try {
