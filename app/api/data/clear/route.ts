@@ -5,22 +5,22 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Delete all bets
+    // Delete all bets - use gt() with a date from the past to match all records
     const { error: betsError } = await supabase
       .from('bets')
       .delete()
-      .neq('id', '')
+      .gt('created_at', '1900-01-01')
 
     if (betsError) {
       console.error('[v0] Error deleting bets:', betsError)
       return NextResponse.json({ error: 'Failed to delete bets' }, { status: 500 })
     }
 
-    // Delete all transactions
+    // Delete all transactions - use gt() with a date from the past to match all records
     const { error: txError } = await supabase
       .from('transactions')
       .delete()
-      .neq('id', '')
+      .gt('created_at', '1900-01-01')
 
     if (txError) {
       console.error('[v0] Error deleting transactions:', txError)
