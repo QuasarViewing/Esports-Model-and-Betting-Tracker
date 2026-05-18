@@ -14,12 +14,12 @@ export interface UpcomingMatch {
 }
 
 export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
-  // Dream League Season 24
+  // Dream League Season 29
   {
-    id: 'dl24-1',
+    id: 'dl29-1',
     team1: 'Liquid',
     team2: 'Tundra',
-    tournament: 'Dream League Season 24',
+    tournament: 'Dream League Season 29',
     date: '2026-05-18',
     time: '14:00 UTC',
     bestOf: 3,
@@ -27,10 +27,10 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     status: 'scheduled'
   },
   {
-    id: 'dl24-2',
+    id: 'dl29-2',
     team1: 'Team Spirit',
     team2: 'OG',
-    tournament: 'Dream League Season 24',
+    tournament: 'Dream League Season 29',
     date: '2026-05-18',
     time: '17:00 UTC',
     bestOf: 3,
@@ -38,10 +38,10 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     status: 'scheduled'
   },
   {
-    id: 'dl24-3',
+    id: 'dl29-3',
     team1: 'Entity',
     team2: 'Gaimin Gladiators',
-    tournament: 'Dream League Season 24',
+    tournament: 'Dream League Season 29',
     date: '2026-05-18',
     time: '20:00 UTC',
     bestOf: 3,
@@ -49,10 +49,10 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     status: 'scheduled'
   },
   {
-    id: 'dl24-4',
+    id: 'dl29-4',
     team1: 'PARIVISION',
     team2: 'Xtreme Gaming',
-    tournament: 'Dream League Season 24',
+    tournament: 'Dream League Season 29',
     date: '2026-05-19',
     time: '09:00 UTC',
     bestOf: 3,
@@ -60,10 +60,10 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
     status: 'scheduled'
   },
   {
-    id: 'dl24-5',
+    id: 'dl29-5',
     team1: 'Fnatic',
     team2: 'Blacklist',
-    tournament: 'Dream League Season 24',
+    tournament: 'Dream League Season 29',
     date: '2026-05-19',
     time: '12:00 UTC',
     bestOf: 3,
@@ -120,8 +120,8 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
 
 export const UPCOMING_TOURNAMENTS = [
   {
-    id: 'dl24',
-    name: 'Dream League Season 24',
+    id: 'dl29',
+    name: 'Dream League Season 29',
     tier: 'Tier 1',
     game: 'dota2',
     startDate: '2026-05-18',
