@@ -6,13 +6,12 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface ProfitChartProps {
   profitByDay: { date: string; profit: number; cumulative: number }[]
-  truePLByDay?: { date: string; balance: number; cumulative: number }[]
   totalProfit?: number
 }
 
-export function ProfitChart({ profitByDay, truePLByDay, totalProfit }: ProfitChartProps) {
-  // Use truePLByDay if available, otherwise use profitByDay
-  const sourceData = truePLByDay && truePLByDay.length > 0 ? truePLByDay : profitByDay
+export function ProfitChart({ profitByDay, totalProfit }: ProfitChartProps) {
+  // Use profitByDay for betting profit only (starts at 0, not at deposit amount)
+  const sourceData = profitByDay
   
   const data = sourceData.map(d => ({
     ...d,
