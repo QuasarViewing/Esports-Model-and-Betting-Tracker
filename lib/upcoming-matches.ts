@@ -14,105 +14,118 @@ export interface UpcomingMatch {
 }
 
 export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
-  // Dream League Season 29
+  // Dream League Season 29 - Upper Bracket Quarterfinals (May 19)
   {
-    id: 'dl29-1',
-    team1: 'Liquid',
-    team2: 'Tundra',
-    tournament: 'Dream League Season 29',
-    date: '2026-05-18',
-    time: '14:00 UTC',
+    id: 'dl29-ubqf-1',
+    team1: 'Team Falcons',
+    team2: 'Natus Vincere',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-19',
+    time: '10:00 UTC',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
   },
   {
-    id: 'dl29-2',
+    id: 'dl29-ubqf-2',
     team1: 'Team Spirit',
-    team2: 'OG',
-    tournament: 'Dream League Season 29',
-    date: '2026-05-18',
+    team2: 'BetBoom Team',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-19',
+    time: '13:30 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-ubqf-3',
+    team1: 'PARIVISION',
+    team2: 'Team Liquid',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-19',
+    time: '13:30 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-ubqf-4',
+    team1: 'Natus Vincere',
+    team2: 'Aurora Gaming',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-19',
     time: '17:00 UTC',
     bestOf: 3,
     tier: 'tier-1',
     status: 'scheduled'
   },
+  // Lower Bracket Round 1 (May 20)
   {
-    id: 'dl29-3',
-    team1: 'Entity',
-    team2: 'Gaimin Gladiators',
-    tournament: 'Dream League Season 29',
-    date: '2026-05-18',
-    time: '20:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  {
-    id: 'dl29-4',
-    team1: 'PARIVISION',
-    team2: 'Xtreme Gaming',
-    tournament: 'Dream League Season 29',
-    date: '2026-05-19',
-    time: '09:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  {
-    id: 'dl29-5',
-    team1: 'Fnatic',
-    team2: 'Blacklist',
-    tournament: 'Dream League Season 29',
-    date: '2026-05-19',
-    time: '12:00 UTC',
-    bestOf: 3,
-    tier: 'tier-2',
-    status: 'scheduled'
-  },
-  // TI Qualifiers EU
-  {
-    id: 'tiqu-eu-1',
-    team1: 'Team Liquid',
-    team2: 'Alliance',
-    tournament: 'The International 2026 Qualifier EU',
-    date: '2026-05-20',
-    time: '15:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  {
-    id: 'tiqu-eu-2',
-    team1: 'OG',
-    team2: 'Team Secret',
-    tournament: 'The International 2026 Qualifier EU',
-    date: '2026-05-20',
-    time: '18:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  // TI Qualifiers CN
-  {
-    id: 'tiqu-cn-1',
-    team1: 'Xtreme Gaming',
+    id: 'dl29-lbr1-1',
+    team1: 'Virtus.pro',
     team2: 'Vici Gaming',
-    tournament: 'The International 2026 Qualifier CN',
-    date: '2026-05-19',
-    time: '11:00 UTC',
-    bestOf: 3,
-    tier: 'tier-1',
-    status: 'scheduled'
-  },
-  {
-    id: 'tiqu-cn-2',
-    team1: 'PARIVISION',
-    team2: 'Ehome',
-    tournament: 'The International 2026 Qualifier CN',
-    date: '2026-05-21',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-20',
     time: '10:00 UTC',
     bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-lbr1-2',
+    team1: 'GamerLegion',
+    team2: 'ex-HEROIC',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-20',
+    time: '13:30 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  // Upper Bracket Semifinals (May 21)
+  {
+    id: 'dl29-ubsf-1',
+    team1: 'TBD',
+    team2: 'TBD',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-21',
+    time: '13:30 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  {
+    id: 'dl29-ubsf-2',
+    team1: 'TBD',
+    team2: 'TBD',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-21',
+    time: '17:00 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  // Upper Bracket Final (May 23)
+  {
+    id: 'dl29-ubf',
+    team1: 'TBD',
+    team2: 'TBD',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-23',
+    time: '13:30 UTC',
+    bestOf: 3,
+    tier: 'tier-1',
+    status: 'scheduled'
+  },
+  // Grand Final (May 24)
+  {
+    id: 'dl29-gf',
+    team1: 'TBD',
+    team2: 'TBD',
+    tournament: 'Dream League Season 29 - Playoffs',
+    date: '2026-05-24',
+    time: '14:00 UTC',
+    bestOf: 5,
     tier: 'tier-1',
     status: 'scheduled'
   },
@@ -124,32 +137,10 @@ export const UPCOMING_TOURNAMENTS = [
     name: 'Dream League Season 29',
     tier: 'Tier 1',
     game: 'dota2',
-    startDate: '2026-05-18',
-    endDate: '2026-05-26',
-    prizePool: '$500,000',
-    status: 'ongoing',
-    region: 'International'
-  },
-  {
-    id: 'tiqu2026',
-    name: 'The International 2026 Qualifiers',
-    tier: 'Tier 1',
-    game: 'dota2',
-    startDate: '2026-05-18',
-    endDate: '2026-05-25',
-    prizePool: 'TBA',
-    status: 'ongoing',
-    region: 'Multiple'
-  },
-  {
-    id: 'lima',
-    name: 'Lima Major 2026',
-    tier: 'Tier 1',
-    game: 'dota2',
-    startDate: '2026-06-05',
-    endDate: '2026-06-15',
+    startDate: '2026-05-13',
+    endDate: '2026-05-24',
     prizePool: '$1,000,000',
-    status: 'upcoming',
+    status: 'ongoing',
     region: 'International'
   },
 ]
