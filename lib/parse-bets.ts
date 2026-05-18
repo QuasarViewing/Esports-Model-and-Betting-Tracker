@@ -313,11 +313,8 @@ function parseDate(dateStr: string): Date {
     const m = parseInt(month) - 1  // JS months are 0-indexed
     const y = 2000 + parseInt(year)
     
-    console.log('[v0] parseDate input:', dateStr, '-> day:', d, 'month:', m+1, 'year:', y, 'hour:', h, 'min:', minutes)
-    
     return new Date(y, m, d, h, parseInt(minutes))
   }
-  console.log('[v0] parseDate FAILED to match:', dateStr)
   return new Date()
 }
 
