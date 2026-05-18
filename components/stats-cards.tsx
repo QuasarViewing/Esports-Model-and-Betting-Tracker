@@ -7,10 +7,17 @@ import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Zap, Award, BarC
 interface StatsCardsProps {
   stats: BettingStats
   detailed?: boolean
+  truePL?: number // Actual profit based on balance, more accurate than bet-sum
 }
 
-export function StatsCards({ stats, detailed = false }: StatsCardsProps) {
-  const isProfit = stats.totalProfit >= 0
+export function StatsCards({ stats, detailed = false, truePL }: StatsCardsProps) {
+  // Use truePL if provided, otherwise fall back to stats.totalProfit
+  const displayProfit = truePL !== undefined ? truePL : stats.totalProfit
+  const displayROI = truePL !== undefined && stats.totalStaked > 0 
+    ? (truePL / stats.totalStaked) * 100 
+    : stats.roi
+  
+  const isProfit = displayProfit >= 0
   const requiredWinRate = stats.averageOdds > 0 ? (100 / stats.averageOdds) : 0
   const edge = stats.winRate - requiredWinRate
 
@@ -23,7 +30,7 @@ export function StatsCards({ stats, detailed = false }: StatsCardsProps) {
             <div>
               <p className="text-sm text-muted-foreground">Net Profit/Loss</p>
               <p className={`text-2xl font-bold font-mono ${isProfit ? 'text-chart-1 text-glow-green' : 'text-destructive text-glow-red'}`}>
-                {isProfit ? '+' : ''}${stats.totalProfit.toFixed(2)}
+                {isProfit ? '+' : ''}${displayProfit.toFixed(2)}
               </p>
             </div>
             <div className={`rounded-xl p-2.5 transition-all group-hover:scale-110 ${isProfit ? 'bg-chart-1/10' : 'bg-destructive/10'}`}>
@@ -46,11 +53,11 @@ export function StatsCards({ stats, detailed = false }: StatsCardsProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">ROI</p>
-              <p className={`text-2xl font-bold font-mono ${stats.roi >= 0 ? 'text-chart-1' : 'text-destructive'}`}>
-                {stats.roi >= 0 ? '+' : ''}{stats.roi.toFixed(1)}%
+              <p className={`text-2xl font-bold font-mono ${displayROI >= 0 ? 'text-chart-1' : 'text-destructive'}`}>
+                {displayROI >= 0 ? '+' : ''}{displayROI.toFixed(1)}%
               </p>
             </div>
-            <div className={`rounded-xl p-2.5 transition-all group-hover:scale-110 ${stats.roi >= 0 ? 'bg-chart-1/10' : 'bg-destructive/10'}`}>
+            <div className={`rounded-xl p-2.5 transition-all group-hover:scale-110 ${displayROI >= 0 ? 'bg-chart-1/10' : 'bg-destructive/10'}`}>
               <Percent className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
