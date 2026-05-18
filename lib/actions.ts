@@ -23,6 +23,8 @@ export interface DbBet {
   implied_probability: number | null
   estimated_opponent_odds: number | null
   break_even_win_rate: number | null
+  no_vig_probability: number | null
+  vig_amount: number | null
   manual_opponent_odds: number | null
   estimated_edge: number | null
 }
@@ -79,6 +81,8 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
       implied_probability: bet.impliedProbability,
       estimated_opponent_odds: bet.estimatedOpponentOdds,
       break_even_win_rate: bet.breakEvenWinRate,
+      no_vig_probability: bet.noVigProbability,
+      vig_amount: bet.vigAmount,
       manual_opponent_odds: bet.manualOpponentOdds || null,
       estimated_edge: bet.estimatedEdge || null
     })

@@ -80,8 +80,9 @@ export function BetsTable({ bets, title = 'Bet History', showFilters = false }: 
                 <TableHead className="text-muted-foreground">Match</TableHead>
                 <TableHead className="text-muted-foreground hidden md:table-cell">Selection</TableHead>
                 <TableHead className="text-right text-muted-foreground">Odds</TableHead>
-                <TableHead className="text-right text-muted-foreground hidden lg:table-cell">Implied %</TableHead>
-                <TableHead className="text-right text-muted-foreground hidden lg:table-cell">Opp. Odds</TableHead>
+                <TableHead className="text-right text-muted-foreground hidden lg:table-cell" title="Your odds implied probability">Implied</TableHead>
+                <TableHead className="text-right text-muted-foreground hidden lg:table-cell" title="Fair probability without bookmaker margin">Fair %</TableHead>
+                <TableHead className="text-right text-muted-foreground hidden xl:table-cell" title="Estimated opponent odds">Opp.</TableHead>
                 <TableHead className="text-right text-muted-foreground">Stake</TableHead>
                 <TableHead className="text-right text-muted-foreground">P/L</TableHead>
                 <TableHead className="text-center text-muted-foreground">Status</TableHead>
@@ -121,7 +122,12 @@ export function BetsTable({ bets, title = 'Bet History', showFilters = false }: 
                   <TableCell className="text-right font-mono text-muted-foreground text-sm hidden lg:table-cell">
                     {bet.impliedProbability?.toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground text-sm hidden lg:table-cell">
+                  <TableCell className="text-right font-mono text-sm hidden lg:table-cell">
+                    <span className="text-chart-1" title={`Vig: ${bet.vigAmount?.toFixed(1)}%`}>
+                      {bet.noVigProbability?.toFixed(1)}%
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground text-sm hidden xl:table-cell">
                     {bet.estimatedOpponentOdds?.toFixed(2) || '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-foreground">

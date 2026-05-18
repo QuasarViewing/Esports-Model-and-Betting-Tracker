@@ -66,7 +66,13 @@ export function BettingTracker() {
     game: b.game as ParsedBet['game'],
     tournament: '',
     isLive: false,
-    betType: (b.bet_type || 'winner') as ParsedBet['betType']
+    betType: (b.bet_type || 'winner') as ParsedBet['betType'],
+    // Vig metrics
+    impliedProbability: b.implied_probability ? Number(b.implied_probability) : (1 / Number(b.odds)) * 100,
+    estimatedOpponentOdds: b.estimated_opponent_odds ? Number(b.estimated_opponent_odds) : 0,
+    breakEvenWinRate: b.break_even_win_rate ? Number(b.break_even_win_rate) : (1 / Number(b.odds)) * 100,
+    noVigProbability: b.no_vig_probability ? Number(b.no_vig_probability) : 0,
+    vigAmount: b.vig_amount ? Number(b.vig_amount) : 0
   })), [dbBets])
 
   const stats = useMemo(() => calculateStats(allBets), [allBets])

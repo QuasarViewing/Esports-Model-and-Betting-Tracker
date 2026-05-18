@@ -20,8 +20,10 @@ export interface ParsedBet {
   betType: 'winner' | 'game_winner' | 'handicap' | 'over_under' | 'other'
   // Vig/Edge metrics
   impliedProbability: number      // 1/odds as percentage
-  estimatedOpponentOdds: number   // Calculated assuming 5% vig
+  estimatedOpponentOdds: number   // Calculated using sport-specific vig
   breakEvenWinRate: number        // Win rate needed to break even
+  noVigProbability: number        // Fair probability without bookmaker margin
+  vigAmount: number               // How much vig affects this bet
   manualOpponentOdds?: number     // User can override
   estimatedEdge?: number          // If user provides their probability estimate
 }
@@ -121,26 +123,45 @@ const VALORANT_TEAMS = [
   'Bilibili Gaming', 'Trace Esports', 'Talon Esports', 'Global Esports', 'GE'
 ]
 
+// Sport-specific vig percentages based on Tab's actual margins
+const VIG_BY_GAME: Record<string, number> = {
+  'dota2': 7.5,
+  'lol': 7.5,
+  'csgo': 7.5,
+  'valorant': 8,
+  'other': 9
+}
+
 // Calculate vig metrics for a bet
-function calculateVigMetrics(odds: number, vigPercent: number = 5): {
+function calculateVigMetrics(odds: number, game: string = 'other'): {
   impliedProbability: number
   estimatedOpponentOdds: number
   breakEvenWinRate: number
+  noVigProbability: number
+  vigAmount: number
 } {
+  const vigPercent = VIG_BY_GAME[game] || 9
+  
   // Implied probability from odds (as percentage)
   const impliedProbability = (1 / odds) * 100
   
-  // Assuming market has X% vig (default 5%), calculate opponent odds
+  // Assuming market has X% vig, calculate opponent odds
   // Total implied = 100% + vig
   // Opponent implied = (100 + vig) - your implied
   const totalImplied = 100 + vigPercent
   const opponentImplied = totalImplied - impliedProbability
   const estimatedOpponentOdds = opponentImplied > 0 ? 100 / opponentImplied : 1.01
   
-  // Break-even win rate is just implied probability
+  // No-vig (fair) probability - remove the margin proportionally
+  const noVigProbability = (impliedProbability / totalImplied) * 100
+  
+  // Break-even win rate accounting for vig
   const breakEvenWinRate = impliedProbability
   
-  return { impliedProbability, estimatedOpponentOdds, breakEvenWinRate }
+  // How much vig affects this specific bet (in %)
+  const vigAmount = impliedProbability - noVigProbability
+  
+  return { impliedProbability, estimatedOpponentOdds, breakEvenWinRate, noVigProbability, vigAmount }
 }
 
 function generateHash(date: string, time: string, match: string, odds: number, stake: number): string {
@@ -386,7 +407,7 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       if (match && odds > 0 && stake > 0) {
         const game = detectGame(match, selection)
         const hash = generateHash(datePart, timePart, match, odds, stake)
-        const vigMetrics = calculateVigMetrics(odds)
+        const vigMetrics = calculateVigMetrics(odds, game)
         
         // Create bet signature for deduplication (same bet placed)
         const betSignature = `${match}|${selection}|${odds}|${stake}`
@@ -412,7 +433,9 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
           // Vig metrics
           impliedProbability: vigMetrics.impliedProbability,
           estimatedOpponentOdds: vigMetrics.estimatedOpponentOdds,
-          breakEvenWinRate: vigMetrics.breakEvenWinRate
+          breakEvenWinRate: vigMetrics.breakEvenWinRate,
+          noVigProbability: vigMetrics.noVigProbability,
+          vigAmount: vigMetrics.vigAmount
         }
         
         // If we've seen this bet before, keep the settled version
