@@ -314,8 +314,8 @@ function parseDateString(dateStr: string): { datePart: string; timePart: string 
   if (dateMatch) {
     const datePart = dateMatch[1]
     const rest = dateStr.slice(datePart.length).trim()
-    // Rest should be time like "12:22PM" or "9:45AM"
-    const timeMatch = rest.match(/^(\d{1,2}:\d{2}\s*(?:AM|PM))$/i)
+    // Rest should be time like "12:22PM" or "9:45AM" - don't require end of string anchor
+    const timeMatch = rest.match(/^(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
     if (timeMatch) {
       return { datePart, timePart: timeMatch[1] }
     }
@@ -465,8 +465,8 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
   }
   
   return {
-    bets: Array.from(seenBets.values()).sort((a, b) => a.date.getTime() - b.date.getTime()),
-    transactions: transactions.sort((a, b) => a.date.getTime() - b.date.getTime())
+    bets: Array.from(seenBets.values()).sort((a, b) => b.date.getTime() - a.date.getTime()),
+    transactions: transactions.sort((a, b) => b.date.getTime() - a.date.getTime())
   }
 }
 
