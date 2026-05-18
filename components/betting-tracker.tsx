@@ -71,12 +71,20 @@ export function BettingTracker() {
 
   const stats = useMemo(() => calculateStats(allBets), [allBets])
 
+  const [pasteError, setPasteError] = useState<string | null>(null)
+
   const handlePaste = async () => {
+    setPasteError(null)
     try {
       const text = await navigator.clipboard.readText()
-      setRawInput(text)
+      if (text) {
+        setRawInput(text)
+      } else {
+        setPasteError('Clipboard is empty')
+      }
     } catch (err) {
       console.error('[v0] Failed to paste:', err)
+      setPasteError('Clipboard access denied. Please paste manually using Ctrl+V / Cmd+V in the text area.')
     }
   }
 
@@ -292,10 +300,23 @@ export function BettingTracker() {
                   detect bets, deposits, and withdrawals. <span className="text-primary">Duplicate entries will be identified and skipped.</span>
                 </p>
                 
-                <Button variant="outline" onClick={handlePaste} className="gap-2">
-                  <ClipboardPaste className="h-4 w-4" />
-                  Paste from Clipboard
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2 items-center">
+                    <Button variant="outline" onClick={handlePaste} className="gap-2">
+                      <ClipboardPaste className="h-4 w-4" />
+                      Paste from Clipboard
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      or press Ctrl+V / Cmd+V in the text area below
+                    </span>
+                  </div>
+                  {pasteError && (
+                    <p className="text-sm text-warning flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {pasteError}
+                    </p>
+                  )}
+                </div>
 
                 <Textarea
                   placeholder={`Paste your Tab betting history here...
