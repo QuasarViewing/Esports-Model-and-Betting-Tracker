@@ -232,7 +232,15 @@ export function calculateStats(bets: ParsedBet[]): BetStats {
 
   let cumulativeProfit = 0
   const profitByDay = Array.from(profitByDayMap.entries())
-    .sort((a, b) => new Date(a[0].split('/').reverse().join('-')).getTime() - new Date(b[0].split('/').reverse().join('-')).getTime())
+    .sort((a, b) => {
+      try {
+        const dateA = a[0]?.split('/').reverse().join('-') || '1900-01-01'
+        const dateB = b[0]?.split('/').reverse().join('-') || '1900-01-01'
+        return new Date(dateA).getTime() - new Date(dateB).getTime()
+      } catch {
+        return 0
+      }
+    })
     .map(([date, profit]) => {
       cumulativeProfit += profit
       return { date, profit, cumulative: cumulativeProfit }
