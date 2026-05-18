@@ -137,6 +137,27 @@ export function BettingTracker() {
     setIsImporting(false)
   }
 
+  // Helper to parse time strings (handles both "12:22PM" and "14:03:00" formats)
+  const parseTimeToMinutes = (timeStr: string | null): number => {
+    if (!timeStr) return 0
+    // Try 12-hour format first (e.g., "12:22PM", "9:45AM")
+    const match12 = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+    if (match12) {
+      let hours = parseInt(match12[1])
+      const minutes = parseInt(match12[2])
+      const period = match12[3].toUpperCase()
+      if (period === 'PM' && hours !== 12) hours += 12
+      if (period === 'AM' && hours === 12) hours = 0
+      return hours * 60 + minutes
+    }
+    // Try 24-hour format (e.g., "14:03:00")
+    const match24 = timeStr.match(/(\d{1,2}):(\d{2})/)
+    if (match24) {
+      return parseInt(match24[1]) * 60 + parseInt(match24[2])
+    }
+    return 0
+  }
+
   // Calculate bankroll info
   const totalDeposits = dbTransactions
     .filter(t => t.type === 'deposit')
@@ -148,13 +169,20 @@ export function BettingTracker() {
   
   // Get the most recent balance from either bets or transactions (whichever is more recent)
   const lastBetBalance = dbBets.length > 0 ? Number(dbBets[0].balance_after) || 0 : 0
-  const lastBetDate = dbBets.length > 0 ? new Date(dbBets[0].date + ' ' + (dbBets[0].time || '00:00')) : new Date(0)
+  const lastBetDate = dbBets.length > 0 ? dbBets[0].date : ''
+  const lastBetMinutes = dbBets.length > 0 ? parseTimeToMinutes(dbBets[0].time) : 0
   
   const lastTxBalance = dbTransactions.length > 0 ? Number(dbTransactions[0].balance_after) || 0 : 0
-  const lastTxDate = dbTransactions.length > 0 ? new Date(dbTransactions[0].date + ' ' + (dbTransactions[0].time || '00:00')) : new Date(0)
+  const lastTxDate = dbTransactions.length > 0 ? dbTransactions[0].date : ''
+  const lastTxMinutes = dbTransactions.length > 0 ? parseTimeToMinutes(dbTransactions[0].time) : 0
   
-  // Use the balance from whichever event happened most recently
-  const currentBalance = lastTxDate > lastBetDate ? lastTxBalance : lastBetBalance
+  // Compare dates first, then times if same date
+  let currentBalance = lastBetBalance
+  if (lastTxDate > lastBetDate) {
+    currentBalance = lastTxBalance
+  } else if (lastTxDate === lastBetDate && lastTxMinutes > lastBetMinutes) {
+    currentBalance = lastTxBalance
+  }
 
   const settledBets = allBets.filter(b => b.type === 'win' || b.type === 'loss' || b.type === 'cashed_out')
   const pendingBets = allBets.filter(b => b.type === 'pending')
