@@ -293,14 +293,27 @@ function detectBetType(selection: string): 'winner' | 'game_winner' | 'handicap'
 
 function parseDate(dateStr: string): Date {
   // Format: "18/05/2612:22PM" or "18/05/26 12:22PM"
+  // Date is DD/MM/YY, Time is H:MM AM/PM or HH:MM AM/PM
   const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i)
   if (match) {
     const [, day, month, year, hours, minutes, period] = match
     let h = parseInt(hours)
-    // Convert 12-hour to 24-hour format
-    if (period.toUpperCase() === 'PM' && h !== 12) h += 12
-    if (period.toUpperCase() === 'AM' && h === 12) h = 0
-    return new Date(2000 + parseInt(year), parseInt(month) - 1, parseInt(day), h, parseInt(minutes))
+    const isPM = period.toUpperCase() === 'PM'
+    const isAM = period.toUpperCase() === 'AM'
+    
+    // Convert 12-hour to 24-hour format correctly
+    if (isPM && h !== 12) {
+      h += 12  // 1PM-11PM -> 13-23
+    } else if (isAM && h === 12) {
+      h = 0    // 12AM -> 0
+    }
+    // Note: 12PM stays as 12, 1AM-11AM stay as 1-11
+    
+    const d = parseInt(day)
+    const m = parseInt(month) - 1  // JS months are 0-indexed
+    const y = 2000 + parseInt(year)
+    
+    return new Date(y, m, d, h, parseInt(minutes))
   }
   return new Date()
 }
@@ -355,39 +368,39 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     
     // Check if this looks like a valid bet entry by checking the type line
     if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
+      
+      // SKIP PENDING BETS - we only want settled bets (win/loss)
+      if (typeLine === 'stake' || typeLine === 'pending') {
+        i += 9  // Skip this entry
+        continue
+      }
+      
       const { datePart, timePart } = parseDateString(dateStr)
       const odds = parseFloat(oddsStr) || 0
       const stake = Math.abs(parseFloat(stakeStr.replace(/[^0-9.-]/g, '') || '0'))
       const balance = parseFloat(balanceStr.replace(/[^0-9.-]/g, '') || '0')
       
-      // Determine actual status and profit/loss
+      // Determine actual status and profit/loss based on the TYPE LINE (which is authoritative)
       let actualType: ParsedBet['type']
       let profitLoss = 0
       
-      const profitTrimmed = profitStr.trim()
-      if (profitTrimmed === '-' || profitTrimmed === '') {
+      // The typeLine tells us definitively if it's a win or loss
+      if (typeLine === 'loss') {
+        actualType = 'loss'
+        profitLoss = -stake  // Loss = negative stake
+      } else if (typeLine === 'win') {
+        actualType = 'win'
+        // For wins, profit = displayed value (total return) - stake
+        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        profitLoss = displayedValue - stake
+      } else if (typeLine === 'cashed out') {
+        actualType = 'cashed_out'
+        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        profitLoss = displayedValue - stake
+      } else {
+        // Shouldn't reach here since we filtered pending above
         actualType = 'pending'
         profitLoss = 0
-      } else {
-        const displayedValue = parseFloat(profitTrimmed.replace(/[^0-9.-]/g, '') || '0')
-        
-        if (typeLine === 'loss') {
-          actualType = 'loss'
-          profitLoss = -stake  // Loss = negative stake
-        } else if (typeLine === 'cashed out') {
-          actualType = 'cashed_out'
-          profitLoss = displayedValue - stake
-        } else if (typeLine === 'win' || displayedValue > 0) {
-          actualType = 'win'
-          // Tab shows total return, actual profit = return - stake
-          profitLoss = displayedValue - stake
-        } else if (typeLine === 'stake') {
-          actualType = 'pending'
-          profitLoss = 0
-        } else {
-          actualType = 'loss'
-          profitLoss = -stake
-        }
       }
       
       if (match && odds > 0 && stake > 0) {
