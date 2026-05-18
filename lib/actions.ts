@@ -65,7 +65,7 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
   for (const bet of bets) {
     const { error } = await supabase.from('bets').insert({
       bet_hash: bet.hash,
-      date: bet.date.toISOString().split('T')[0],
+      date: bet.date,
       time: bet.timeString || null,
       game: bet.game,
       match: bet.match,
@@ -83,8 +83,8 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
       break_even_win_rate: bet.breakEvenWinRate,
       no_vig_probability: bet.noVigProbability,
       vig_amount: bet.vigAmount,
-      manual_opponent_odds: bet.manualOpponentOdds || null,
-      estimated_edge: bet.estimatedEdge || null
+      manual_opponent_odds: null,
+      estimated_edge: null
     })
     
     if (error) {
@@ -111,7 +111,7 @@ export async function saveTransactions(transactions: ParsedTransaction[]): Promi
       amount: tx.amount,
       bookmaker: 'Tab',
       method: null,
-      date: tx.date.toISOString().split('T')[0],
+      date: tx.date,
       time: tx.timeString || null,
       balance_after: tx.balanceAfter,
       notes: null

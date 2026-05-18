@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { parseBettingData, calculateStats, type ParsedBet, type ParsedTransaction, type ImportResult } from '@/lib/parse-bets'
+import { parseBettingData, calculateStats, checkDuplicates, type ParsedBet, type ParsedTransaction, type ImportResult } from '@/lib/parse-bets'
 import { getExistingHashes, saveBets, saveTransactions, getAllBets, getAllTransactions, type DbBet, type DbTransaction } from '@/lib/actions'
 import { StatsCards } from './stats-cards'
 import { BetsTable } from './bets-table'
@@ -81,7 +81,7 @@ export function BettingTracker() {
     id: b.id,
     hash: b.bet_hash,
     type: b.status as ParsedBet['type'],
-    date: new Date(b.date),
+    date: b.date,
     dateString: b.date,
     timeString: b.time || '',
     match: b.match,

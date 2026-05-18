@@ -53,7 +53,11 @@ function getStatusBadge(type: ParsedBet['type']) {
 
 export function BetsTable({ bets, title = 'Bet History', showFilters = false }: BetsTableProps) {
   // Sort bets by date descending (most recent first)
-  const sortedBets = [...bets].sort((a, b) => b.date.getTime() - a.date.getTime())
+  const sortedBets = [...bets].sort((a, b) => {
+    const dateA = typeof a.date === 'string' ? new Date(a.date.split('/').reverse().join('-')).getTime() : new Date(a.date as any).getTime()
+    const dateB = typeof b.date === 'string' ? new Date(b.date.split('/').reverse().join('-')).getTime() : new Date(b.date as any).getTime()
+    return dateB - dateA
+  })
 
   if (sortedBets.length === 0) {
     return (
@@ -99,7 +103,7 @@ export function BetsTable({ bets, title = 'Bet History', showFilters = false }: 
                     <div className="text-xs opacity-70">{bet.timeString}</div>
                   </TableCell>
                   <TableCell>
-                    {bet.game !== 'other' && (
+                    {(bet.game as any) !== 'other' && (
                       <Badge variant="outline" className={`text-xs ${gameColors[bet.game]}`}>
                         {gameLabels[bet.game]}
                       </Badge>

@@ -36,6 +36,15 @@ export interface ParsedTransaction {
   balanceAfter: number
 }
 
+export interface ImportResult {
+  newBets: ParsedBet[]
+  newTransactions: ParsedTransaction[]
+  duplicateBets: ParsedBet[]
+  duplicateTransactions: ParsedTransaction[]
+  bets: ParsedBet[]
+  transactions: ParsedTransaction[]
+}
+
 export interface BetStats {
   totalProfit: number
   totalBets: number
@@ -47,7 +56,9 @@ export interface BetStats {
   totalStaked: number
   profitByDay: { date: string; profit: number; cumulative: number }[]
   profitByGame: { game: string; profit: number; betCount: number; winRate: number }[]
-  streak: { direction: 'W' | 'L'; count: number }
+  currentStreak: { type: 'win' | 'loss'; count: number }
+  pendingBets: number
+  pendingStake: number
 }
 
 function parseDate(dateString: string): string {
@@ -209,11 +220,14 @@ export function calculateStats(bets: ParsedBet[]): BetStats {
       totalStaked: 0,
       profitByDay: [],
       profitByGame: [],
-      streak: { direction: 'W', count: 0 }
+      currentStreak: { type: 'win', count: 0 },
+      pendingBets: 0,
+      pendingStake: 0
     }
   }
 
   const settledBets = bets.filter(b => b.type === 'win' || b.type === 'loss')
+  const pendingBets = bets.filter(b => b.type === 'pending')
   
   const totalProfit = settledBets.reduce((sum, b) => sum + b.profitLoss, 0)
   const winCount = settledBets.filter(b => b.type === 'win').length
@@ -222,20 +236,24 @@ export function calculateStats(bets: ParsedBet[]): BetStats {
   const averageOdds = settledBets.length > 0 ? settledBets.reduce((sum, b) => sum + b.odds, 0) / settledBets.length : 0
   const totalStaked = settledBets.reduce((sum, b) => sum + b.stake, 0)
   const averageStake = settledBets.length > 0 ? totalStaked / settledBets.length : 0
+  const pendingStake = pendingBets.reduce((sum, b) => sum + b.stake, 0)
 
   // Profit by day
   const profitByDayMap = new Map<string, number>()
   settledBets.forEach(bet => {
     const day = bet.date
-    profitByDayMap.set(day, (profitByDayMap.get(day) || 0) + bet.profitLoss)
+    if (typeof day === 'string') {
+      profitByDayMap.set(day, (profitByDayMap.get(day) || 0) + bet.profitLoss)
+    }
   })
 
   let cumulativeProfit = 0
   const profitByDay = Array.from(profitByDayMap.entries())
+    .filter(([date]) => typeof date === 'string' && date.length > 0)
     .sort((a, b) => {
       try {
-        const dateA = a[0]?.split('/').reverse().join('-') || '1900-01-01'
-        const dateB = b[0]?.split('/').reverse().join('-') || '1900-01-01'
+        const dateA = typeof a[0] === 'string' ? a[0].split('/').reverse().join('-') : '1900-01-01'
+        const dateB = typeof b[0] === 'string' ? b[0].split('/').reverse().join('-') : '1900-01-01'
         return new Date(dateA).getTime() - new Date(dateB).getTime()
       } catch {
         return 0
@@ -261,21 +279,21 @@ export function calculateStats(bets: ParsedBet[]): BetStats {
     game,
     profit,
     betCount: count,
-    winRate: (wins / count) * 100
+    winRate: count > 0 ? (wins / count) * 100 : 0
   }))
 
-  // Calculate streak
-  let streak: { direction: 'W' | 'L'; count: number } = { direction: 'W', count: 0 }
+  // Calculate current streak
+  let currentStreak: { type: 'win' | 'loss'; count: number } = { type: 'win', count: 0 }
   for (let i = settledBets.length - 1; i >= 0; i--) {
     const bet = settledBets[i]
     if (i === settledBets.length - 1) {
-      streak.direction = bet.type === 'win' ? 'W' : 'L'
-      streak.count = 1
+      currentStreak.type = bet.type === 'win' ? 'win' : 'loss'
+      currentStreak.count = 1
     } else {
       const prevBet = settledBets[i + 1]
-      const currentDir = bet.type === 'win' ? 'W' : 'L'
-      if (currentDir === streak.direction) {
-        streak.count++
+      const currentType = bet.type === 'win' ? 'win' : 'loss'
+      if (currentType === currentStreak.type) {
+        currentStreak.count++
       } else {
         break
       }
@@ -293,6 +311,30 @@ export function calculateStats(bets: ParsedBet[]): BetStats {
     totalStaked,
     profitByDay,
     profitByGame,
-    streak
+    currentStreak,
+    pendingBets: pendingBets.length,
+    pendingStake
+  }
+}
+
+export function checkDuplicates(
+  newBets: ParsedBet[],
+  newTransactions: ParsedTransaction[],
+  existingBetHashes: Set<string>,
+  existingTxHashes: Set<string>
+): ImportResult {
+  const newBetsFiltered = newBets.filter(b => !existingBetHashes.has(b.hash))
+  const duplicateBets = newBets.filter(b => existingBetHashes.has(b.hash))
+  
+  const newTxFiltered = newTransactions.filter(tx => !existingTxHashes.has(tx.hash))
+  const duplicateTx = newTransactions.filter(tx => existingTxHashes.has(tx.hash))
+  
+  return {
+    newBets: newBetsFiltered,
+    newTransactions: newTxFiltered,
+    duplicateBets,
+    duplicateTransactions: duplicateTx,
+    bets: newBetsFiltered,
+    transactions: newTxFiltered
   }
 }

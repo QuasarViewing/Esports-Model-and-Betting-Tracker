@@ -1,11 +1,11 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { BettingStats } from '@/lib/parse-bets'
+import type { BetStats } from '@/lib/parse-bets'
 
 interface GameBreakdownProps {
-  profitByGame: Record<string, { profit: number; bets: number; wins: number }>
-  stats: BettingStats
+  profitByGame: { game: string; profit: number; betCount: number; winRate: number }[]
+  stats: BetStats
 }
 
 const gameLabels: Record<string, string> = {
@@ -45,11 +45,11 @@ const gameColors: Record<string, { bg: string; bar: string; border: string }> = 
 }
 
 export function GameBreakdown({ profitByGame, stats }: GameBreakdownProps) {
-  const games = Object.entries(profitByGame)
-    .filter(([, data]) => data.bets > 0)
-    .sort((a, b) => Math.abs(b[1].profit) - Math.abs(a[1].profit))
+  const games = profitByGame
+    .filter(data => data.betCount > 0)
+    .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit))
   
-  const maxProfit = Math.max(...games.map(([, data]) => Math.abs(data.profit)), 1)
+  const maxProfit = Math.max(...games.map(data => Math.abs(data.profit)), 1)
   const requiredWinRate = stats.averageOdds > 0 ? (100 / stats.averageOdds) : 0
 
   return (
@@ -61,17 +61,17 @@ export function GameBreakdown({ profitByGame, stats }: GameBreakdownProps) {
         {games.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">No game data available</p>
         ) : (
-          games.map(([game, data]) => {
-            const winRate = data.bets > 0 ? (data.wins / data.bets) * 100 : 0
-            const colors = gameColors[game] || gameColors.other
+          games.map((data) => {
+            const colors = gameColors[data.game] || gameColors.other
+            const wins = Math.round((data.winRate / 100) * data.betCount)
             
             return (
-              <div key={game} className={`p-3 rounded-lg ${colors.bg} border-l-2 ${colors.border}`}>
+              <div key={data.game} className={`p-3 rounded-lg ${colors.bg} border-l-2 ${colors.border}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="font-medium text-foreground">{gameLabels[game] || game}</span>
+                    <span className="font-medium text-foreground">{gameLabels[data.game] || data.game}</span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      {data.bets} bets ({data.wins}W)
+                      {data.betCount} bets ({wins}W)
                     </span>
                   </div>
                   <span className={`font-mono font-bold ${data.profit >= 0 ? 'text-chart-1' : 'text-destructive'}`}>
@@ -85,8 +85,8 @@ export function GameBreakdown({ profitByGame, stats }: GameBreakdownProps) {
                       style={{ width: `${(Math.abs(data.profit) / maxProfit) * 100}%` }}
                     />
                   </div>
-                  <span className={`text-xs font-mono ${winRate > requiredWinRate ? 'text-chart-1' : 'text-muted-foreground'}`}>
-                    {winRate.toFixed(0)}% WR
+                  <span className={`text-xs font-mono ${data.winRate > requiredWinRate ? 'text-chart-1' : 'text-muted-foreground'}`}>
+                    {data.winRate.toFixed(0)}% WR
                   </span>
                 </div>
               </div>
