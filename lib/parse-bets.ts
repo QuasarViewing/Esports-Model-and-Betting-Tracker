@@ -337,16 +337,123 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
   // Track seen bets by their unique signature to handle the duplicate pending/settled issue
   const seenBets = new Map<string, ParsedBet>()
   
-  let i = 0
-  while (i < lines.length) {
-    const typeLine = lines[i]?.toLowerCase()
-    
-    if (!typeLine) {
+  // Check if data is tab-separated (new format) or old line-based format
+  const isTabSeparated = lines[0]?.includes('\t')
+  
+  if (isTabSeparated) {
+    // New tab-separated format from betting site export
+    // Headers: STATUS | DATE | TIME | TYPE | Bet Details | Odds | Stake | Amount | Balance
+    let i = 0
+    while (i < lines.length) {
+      const line = lines[i]
+      const parts = line.split('\t').map(p => p.trim())
+      
+      if (parts.length < 9) {
+        i++
+        continue
+      }
+      
+      const [status, dateStr, timeStr, type, betDetails, oddsStr, stakeStr, amountStr, balanceStr] = parts
+      
+      // Skip header row
+      if (status.toLowerCase() === 'status') {
+        i++
+        continue
+      }
+      
+      // Combine date and time
+      const fullDateTime = `${dateStr}${timeStr.replace(/\s/g, '')}`
+      
+      // Handle transactions (deposits/withdrawals)
+      if (status.toLowerCase() === 'withdraw') {
+        const amount = parseFloat(amountStr.replace(/[$-]/g, '')) || 0
+        const balance = parseFloat(balanceStr.replace(/[$-]/g, '')) || 0
+        
+        const tx: ParsedTransaction = {
+          id: crypto.randomUUID(),
+          hash: crypto.createHash('sha256').update(`withdrawal-${fullDateTime}-${Math.abs(amount)}`).digest('hex'),
+          type: 'withdrawal',
+          date: parseDate(fullDateTime),
+          dateString: dateStr,
+          timeString: timeStr,
+          amount: Math.abs(amount),
+          balanceAfter: balance
+        }
+        transactions.push(tx)
+      } else if (status.toLowerCase() === 'deposit') {
+        const amount = parseFloat(amountStr.replace(/[$-]/g, '')) || 0
+        const balance = parseFloat(balanceStr.replace(/[$-]/g, '')) || 0
+        
+        const tx: ParsedTransaction = {
+          id: crypto.randomUUID(),
+          hash: crypto.createHash('sha256').update(`deposit-${fullDateTime}-${amount}`).digest('hex'),
+          type: 'deposit',
+          date: parseDate(fullDateTime),
+          dateString: dateStr,
+          timeString: timeStr,
+          amount,
+          balanceAfter: balance
+        }
+        transactions.push(tx)
+      } else {
+        // Handle bets
+        const betType = status.toLowerCase() === 'win' ? 'win' 
+          : status.toLowerCase() === 'loss' ? 'loss'
+          : status.toLowerCase() === 'stake' ? 'pending'
+          : status.toLowerCase() === 'cashed out' ? 'cashed_out'
+          : 'pending'
+        
+        const odds = parseFloat(oddsStr) || 0
+        const stake = parseFloat(stakeStr.replace(/[$-]/g, '')) || 0
+        const profitAmount = parseFloat(amountStr.replace(/[$-]/g, '')) || 0
+        const balance = parseFloat(balanceStr.replace(/[$-]/g, '')) || 0
+        
+        const match = betDetails
+        const selection = type
+        const game = detectGame(match, selection)
+        
+        const bet: ParsedBet = {
+          id: crypto.randomUUID(),
+          hash: crypto.createHash('sha256').update(`${fullDateTime}-${match}-${selection}-${stake}`).digest('hex'),
+          type: betType,
+          date: parseDate(fullDateTime),
+          dateString: dateStr,
+          timeString: timeStr,
+          match,
+          selection,
+          eventDate: '',
+          odds: odds || 1,
+          stake,
+          profitLoss: profitAmount,
+          balance,
+          game,
+          tournament: detectTournament(match, selection, game),
+          isLive: false,
+          betType: detectBetType(selection),
+          impliedProbability: odds > 0 ? (1 / odds) * 100 : 0,
+          estimatedOpponentOdds: odds > 0 ? (1 / ((1 / odds) - 0.05)) : 0,
+          breakEvenWinRate: odds > 0 ? (1 / odds) * 100 : 0,
+          noVigProbability: 0,
+          vigAmount: 0
+        }
+        
+        bets.push(bet)
+      }
+      
       i++
-      continue
     }
-    
-    // Detect entry type
+  } else {
+    // Original line-based format (keep existing logic)
+    let i = 0
+    while (i < lines.length) {
+      const typeLine = lines[i]?.toLowerCase()
+      
+      if (!typeLine) {
+        i++
+        continue
+      }
+      
+      // Detect entry type
     if (typeLine === 'withdraw' || typeLine === 'deposit') {
       // Transaction format (8 lines): type, date+time, "Withdrawal/Deposit", status, -, display_amount, actual_amount, balance
       const dateStr = lines[i + 1] || ''
