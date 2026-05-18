@@ -7,9 +7,10 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 interface ProfitChartProps {
   profitByDay: { date: string; profit: number; cumulative: number }[]
   truePLByDay?: { date: string; balance: number; cumulative: number }[]
+  totalProfit?: number
 }
 
-export function ProfitChart({ profitByDay, truePLByDay }: ProfitChartProps) {
+export function ProfitChart({ profitByDay, truePLByDay, totalProfit }: ProfitChartProps) {
   // Use truePLByDay if available, otherwise use profitByDay
   const sourceData = truePLByDay && truePLByDay.length > 0 ? truePLByDay : profitByDay
   
@@ -31,7 +32,8 @@ export function ProfitChart({ profitByDay, truePLByDay }: ProfitChartProps) {
     )
   }
 
-  const latestProfit = data[data.length - 1]?.cumulative || 0
+  // Use totalProfit if provided, otherwise use the last cumulative value from data
+  const latestProfit = totalProfit !== undefined ? totalProfit : (data[data.length - 1]?.cumulative || 0)
   const minValue = Math.min(...data.map(d => d.cumulative), 0)
   const maxValue = Math.max(...data.map(d => d.cumulative), 0)
   const padding = Math.max(Math.abs(maxValue - minValue) * 0.1, 20)
