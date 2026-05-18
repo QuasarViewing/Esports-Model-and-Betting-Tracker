@@ -63,16 +63,16 @@ export async function getLiveMatches(game: GameType): Promise<LiveMatch[]> {
       return []
     }
 
-    // PandaScore uses videogame_id for filtering, not game-specific endpoints
-    const gameIdMap: Record<GameType, number> = {
-      dota2: 4,       // Dota 2
-      lol: 1,         // League of Legends
-      csgo: 3,        // CS:GO/CS2
-      valorant: 26    // Valorant
+    // PandaScore uses game-specific endpoints with /running for live matches
+    const gameSlugMap: Record<GameType, string> = {
+      dota2: 'dota2',
+      lol: 'lol',
+      csgo: 'csgo',
+      valorant: 'valorant'
     }
 
-    // Use the main matches endpoint with videogame filter and status=running
-    const url = `https://api.pandascore.co/matches?filter[status]=running&filter[videogame_id]=${gameIdMap[game]}&sort=-scheduled_at&page=1&per_page=20`
+    // Use game-specific running matches endpoint
+    const url = `https://api.pandascore.co/${gameSlugMap[game]}/matches/running?per_page=20`
     console.log('[v0] Fetching live matches from:', url)
 
     const response = await fetch(url, {
