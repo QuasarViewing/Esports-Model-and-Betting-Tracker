@@ -348,12 +348,6 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
   
   let i = 0
   while (i < lines.length) {
-    // Check if we have enough lines for a bet entry (9 lines)
-    if (i + 8 >= lines.length) {
-      i++
-      continue
-    }
-    
     // DETECT FORMAT: Check if line 0 is a TYPE or a DATE
     // Format A (TYPE FIRST): Win/Loss, date, match, selection, eventDate, odds, stake, profit, balance
     // Format B (TYPE LAST): date, match, selection, eventDate, odds, stake, profit, balance, Win/Loss
@@ -363,14 +357,17 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     // Parse transactions (withdraw/deposit) - 8 lines each
     // Format: type, date, description, status, -, displayAmount, amount, balance
     if (firstLine === 'withdraw' || firstLine === 'deposit') {
+      // Check if we have enough lines for a transaction (8 lines: indices i through i+7)
+      if (i + 7 >= lines.length) {
+        i++
+        continue
+      }
       const dateStr = lines[i + 1] || ''
       const { datePart, timePart } = parseDateString(dateStr)
       // Amount is at index 6 (e.g., "-$60.00" or "$500.00")
       const amountStr = lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'
       const amount = Math.abs(parseFloat(amountStr))
       const balanceAfter = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      console.log(`[v0] TRANSACTION: ${firstLine} | amount: ${amount} | balanceAfter: ${balanceAfter}`)
       
       const hash = generateTxHash(datePart, timePart, firstLine, amount)
       
@@ -398,6 +395,12 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     let stakeStr: string
     let profitStr: string
     let balanceStr: string
+    
+    // Check if we have enough lines for a bet entry (9 lines: indices i through i+8)
+    if (i + 8 >= lines.length) {
+      i++
+      continue
+    }
     
     if (isTypeFirst) {
       // Format A: type is first
