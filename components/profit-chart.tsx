@@ -17,12 +17,17 @@ export function ProfitChart({ profitByDay, totalProfit }: ProfitChartProps) {
   const data = sourceData.map(d => {
     const parts = d.date.split('/')
     // Create sortable date (YYYY-MM-DD) and display date (MM/DD)
-    const sortKey = parts.length === 3 
-      ? `20${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
-      : d.date
-    const displayDate = parts.length === 3 
-      ? `${parts[1]}/${parts[0]}`  // MM/DD format
-      : d.date
+    // "Start" gets a sort key that comes before all dates (0000-00-00)
+    const sortKey = d.date === 'Start' 
+      ? '0000-00-00'
+      : parts.length === 3 
+        ? `20${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+        : d.date
+    const displayDate = d.date === 'Start'
+      ? 'Start'
+      : parts.length === 3 
+        ? `${parts[1]}/${parts[0]}`  // MM/DD format
+        : d.date
     return {
       ...d,
       sortKey,
