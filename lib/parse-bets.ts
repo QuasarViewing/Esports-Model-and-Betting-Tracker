@@ -276,6 +276,7 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       
       // KEY FIX: Determine actual status from profit field, not just the type line
       // If profit shows "-" it's pending, if it shows a number it's settled
+      // For losses, Tab shows "$0.00" as profit (you won nothing), but actual loss = -stake
       let actualType: ParsedBet['type']
       let profitLoss = 0
       
@@ -283,13 +284,23 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         actualType = 'pending'
         profitLoss = 0
       } else {
-        profitLoss = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
-        if (typeLine === 'cashed out') {
-          actualType = 'cashed_out'
-        } else if (profitLoss > 0) {
-          actualType = 'win'
-        } else {
+        const parsedProfit = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        
+        // Tab shows losses as "$0.00" or "-$0.00" (you won nothing)
+        // But the actual loss is the stake you lost
+        if (typeLine === 'loss') {
           actualType = 'loss'
+          profitLoss = -stake  // Loss = negative stake
+        } else if (typeLine === 'cashed out') {
+          actualType = 'cashed_out'
+          profitLoss = parsedProfit
+        } else if (typeLine === 'win' || parsedProfit > 0) {
+          actualType = 'win'
+          profitLoss = parsedProfit  // Win = the profit shown
+        } else {
+          // If parsedProfit <= 0 and not explicitly a win, it's a loss
+          actualType = 'loss'
+          profitLoss = -stake
         }
       }
       
