@@ -191,16 +191,16 @@ export function BettingTracker() {
 
   // Calculate truePL by day based on transactions
   const truePLByDayMap = new Map<string, { deposits: number; withdrawals: number }>()
-  allTransactions.forEach(tx => {
-    const day = tx.dateString
+  dbTransactions.forEach(tx => {
+    const day = tx.date
     if (!truePLByDayMap.has(day)) {
       truePLByDayMap.set(day, { deposits: 0, withdrawals: 0 })
     }
     const entry = truePLByDayMap.get(day)!
     if (tx.type === 'deposit') {
-      entry.deposits += tx.amount
+      entry.deposits += Number(tx.amount)
     } else if (tx.type === 'withdrawal') {
-      entry.withdrawals += tx.amount
+      entry.withdrawals += Number(tx.amount)
     }
   })
 
