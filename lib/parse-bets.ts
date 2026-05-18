@@ -360,9 +360,30 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     const firstLine = lines[i]?.toLowerCase() || ''
     const isTypeFirst = ['win', 'loss', 'pending', 'cashed out', 'stake', 'withdraw', 'deposit'].includes(firstLine)
     
-    // Skip transactions (withdraw/deposit)
+    // Parse transactions (withdraw/deposit) - 8 lines each
+    // Format: type, date, description, status, -, displayAmount, amount, balance
     if (firstLine === 'withdraw' || firstLine === 'deposit') {
-      i += 8  // Transactions are 8 lines
+      const dateStr = lines[i + 1] || ''
+      const { datePart, timePart } = parseDateString(dateStr)
+      // Amount is at index 6 (e.g., "-$60.00" or "$500.00")
+      const amountStr = lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'
+      const amount = Math.abs(parseFloat(amountStr))
+      const balanceAfter = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
+      
+      const hash = generateTxHash(datePart, timePart, firstLine, amount)
+      
+      transactions.push({
+        id: `tx-${Date.now()}-${i}`,
+        hash,
+        type: firstLine === 'withdraw' ? 'withdrawal' : 'deposit',
+        date: parseDate(dateStr),
+        dateString: datePart,
+        timeString: timePart,
+        amount,
+        balanceAfter
+      })
+      
+      i += 8
       continue
     }
     
@@ -422,13 +443,11 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       if (typeLine === 'loss') {
         actualType = 'loss'
         profitLoss = -stake  // Loss = negative stake
-        console.log(`[v0] LOSS: ${match} | stake: ${stake} | profitLoss: ${profitLoss}`)
       } else if (typeLine === 'win') {
         actualType = 'win'
         // For wins, calculate profit from odds: profit = stake * (odds - 1)
         // This is more reliable than parsing the return field which can be inconsistent
         profitLoss = stake * (odds - 1)
-        console.log(`[v0] WIN: ${match} | stake: ${stake} | odds: ${odds} | profitLoss: ${profitLoss}`)
       } else if (typeLine === 'cashed out') {
         actualType = 'cashed_out'
         const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
