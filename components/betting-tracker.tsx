@@ -19,6 +19,7 @@ import { MatchResearch } from './match-research'
 
 export function BettingTracker() {
   const [rawInput, setRawInput] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
 
   const handleClearAllData = async () => {
