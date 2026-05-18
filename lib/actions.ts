@@ -63,9 +63,15 @@ export async function saveBets(bets: ParsedBet[]): Promise<{ inserted: number; e
   let inserted = 0
   
   for (const bet of bets) {
+    // Use local date components instead of toISOString() to avoid timezone shift
+    const year = bet.date.getFullYear()
+    const month = String(bet.date.getMonth() + 1).padStart(2, '0')
+    const day = String(bet.date.getDate()).padStart(2, '0')
+    const localDateStr = `${year}-${month}-${day}`
+    
     const { error } = await supabase.from('bets').insert({
       bet_hash: bet.hash,
-      date: bet.date.toISOString().split('T')[0],
+      date: localDateStr,
       time: bet.timeString || null,
       game: bet.game,
       match: bet.match,
@@ -105,13 +111,19 @@ export async function saveTransactions(transactions: ParsedTransaction[]): Promi
   let inserted = 0
   
   for (const tx of transactions) {
+    // Use local date components instead of toISOString() to avoid timezone shift
+    const year = tx.date.getFullYear()
+    const month = String(tx.date.getMonth() + 1).padStart(2, '0')
+    const day = String(tx.date.getDate()).padStart(2, '0')
+    const localDateStr = `${year}-${month}-${day}`
+    
     const { error } = await supabase.from('transactions').insert({
       tx_hash: tx.hash,
       type: tx.type,
       amount: tx.amount,
       bookmaker: 'Tab',
       method: null,
-      date: tx.date.toISOString().split('T')[0],
+      date: localDateStr,
       time: tx.timeString || null,
       balance_after: tx.balanceAfter,
       notes: null
