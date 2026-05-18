@@ -177,17 +177,33 @@ function generateTxHash(date: string, time: string, type: string, amount: number
 function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
   const text = `${match} ${selection}`.toLowerCase()
   
-  // Check for Valorant-specific terms FIRST (rounds, under X.5)
-  // "under 7.5" or "over 7.5" with LOUD/100T/MIBR = Valorant
-  const hasRoundsBet = /under\s*\d+\.?\d*|over\s*\d+\.?\d*|rounds/i.test(selection)
-  const valorantOrgs = ['mibr', 'loud', '100 thieves', '100t']
-  const hasValorantOrg = valorantOrgs.some(org => text.includes(org))
+  // VALORANT CHECK - MOVED FIRST (BEFORE LoL)
+  // Check if both teams are Valorant teams
+  const valorantTeams = ['mibr', 'loud', '100 thieves', '100t', 'sentinels', 'nrg', 'evil geniuses', 'eg', 
+    'cloud9', 'c9', 'xset', 'optic', 'the guard', 'version1', 'v1', 'paper rex', 'prx', 
+    'drx', 't1', 'gen.g', 'zeta division', 'fnatic', 'fnc', 'team liquid', 'tl', 
+    'natus vincere', 'navi', 'fut esports', 'kru', 'leviatán', 'team heretics', 
+    'karmine corp', 'kc', 'bbl esports', 'edward gaming', 'edg', 'bilibili gaming', 
+    'trace esports', 'talon esports', 'global esports', 'ge']
   
-  if (hasRoundsBet && hasValorantOrg) {
+  const matchLower = match.toLowerCase()
+  const teamA = matchLower.split(' vs ')[0]?.trim() || ''
+  const teamB = matchLower.split(' vs ')[1]?.trim().split('(')[0]?.trim() || ''
+  
+  const teamAIsValorant = valorantTeams.some(t => teamA.includes(t) || t.includes(teamA))
+  const teamBIsValorant = valorantTeams.some(t => teamB.includes(t) || t.includes(teamB))
+  
+  if (teamAIsValorant && teamBIsValorant) {
     return 'valorant'
   }
   
-  // Check for EXCLUSIVE Dota teams first
+  // Check for Valorant-specific terms (rounds bets)
+  const hasRoundsBet = /under\s*\d+\.?\d*|over\s*\d+\.?\d*|rounds/i.test(selection)
+  if (hasRoundsBet && (teamAIsValorant || teamBIsValorant)) {
+    return 'valorant'
+  }
+  
+  // Check for EXCLUSIVE Dota teams
   for (const team of DOTA_ONLY_TEAMS) {
     if (text.includes(team.toLowerCase())) return 'dota2'
   }
@@ -197,7 +213,7 @@ function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' 
     if (text.includes(team.toLowerCase())) return 'csgo'
   }
   
-  // Check LoL regional league teams - these are exclusive to LoL
+  // Check LoL regional league teams - NOW AFTER VALORANT CHECK
   for (const [, teams] of Object.entries(LOL_REGION_TEAMS)) {
     for (const team of teams) {
       if (text.includes(team.toLowerCase())) return 'lol'
@@ -205,53 +221,33 @@ function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' 
   }
   
   // For teams that play both Dota and CS (BetBoom vs Navi)
-  // If BOTH teams are shared orgs, it's likely CS (more common for these matchups)
   const sharedTeamsInMatch = DOTA_CS_SHARED.filter(team => text.includes(team.toLowerCase()))
   
   if (sharedTeamsInMatch.length >= 2) {
-    // Both teams are shared orgs (e.g., BetBoom vs Navi)
-    // Check selection for game-specific bet types
     if (selection.toLowerCase().includes('map') || selection.toLowerCase().includes('game')) {
-      // "Game 2 winner" style is common in CS
       return 'csgo'
     }
-    // Default to CS for these matchups
     return 'csgo'
   }
   
   if (sharedTeamsInMatch.length === 1) {
-    // One shared team - check if opponent is Dota-only or CS-only
     for (const team of DOTA_ONLY_TEAMS) {
       if (text.includes(team.toLowerCase())) return 'dota2'
     }
     for (const team of CSGO_ONLY_TEAMS) {
       if (text.includes(team.toLowerCase())) return 'csgo'
     }
-    // Default to 'other' so user can correct
     return 'other'
-  }
-  
-  // Teams that play BOTH Valorant and LoL 
-  if (hasValorantOrg) {
-    // Check for LoL-specific terms  
-    if (text.includes('dragon') || text.includes('baron') || text.includes('tower')) return 'lol'
-    // Default to Valorant for these orgs
-    return 'valorant'
-  }
-  
-  // Check Valorant-specific teams
-  const valorantOnlyTeams = ['sentinels', 'nrg', 'evil geniuses', 'eg', 'xset', 'optic', 
-    'the guard', 'version1', 'v1', 'paper rex', 'prx', 'zeta division', 'fut esports', 
-    'kru', 'leviatán', 'team heretics', 'karmine corp', 'kc', 'bbl esports', 
-    'trace esports', 'talon esports', 'global esports', 'ge']
-  
-  for (const team of valorantOnlyTeams) {
-    if (text.includes(team)) return 'valorant'
   }
   
   // Check remaining LoL teams
   for (const team of LOL_TEAMS) {
     if (text.includes(team.toLowerCase())) return 'lol'
+  }
+  
+  // If one team is Valorant, prefer Valorant
+  if (teamAIsValorant || teamBIsValorant) {
+    return 'valorant'
   }
   
   return 'other'
@@ -420,8 +416,8 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         const hash = generateHash(datePart, timePart, match, odds, stake)
         const vigMetrics = calculateVigMetrics(odds, game)
         
-        // Create bet signature for deduplication (same bet placed)
-        const betSignature = `${match}|${selection}|${odds}|${stake}`
+        // Create bet signature for deduplication - NOW INCLUDES DATE so bets on different days aren't merged
+        const betSignature = `${datePart}|${timePart}|${match}|${selection}|${odds}|${stake}`
         
         const bet: ParsedBet = {
           id: `bet-${Date.now()}-${i}`,
