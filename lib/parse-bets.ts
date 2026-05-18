@@ -358,7 +358,13 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
     // Format A (TYPE FIRST): Win/Loss, date, match, selection, eventDate, odds, stake, profit, balance
     // Format B (TYPE LAST): date, match, selection, eventDate, odds, stake, profit, balance, Win/Loss
     const firstLine = lines[i]?.toLowerCase() || ''
-    const isTypeFirst = ['win', 'loss', 'pending', 'cashed out', 'stake'].includes(firstLine)
+    const isTypeFirst = ['win', 'loss', 'pending', 'cashed out', 'stake', 'withdraw', 'deposit'].includes(firstLine)
+    
+    // Skip transactions (withdraw/deposit)
+    if (firstLine === 'withdraw' || firstLine === 'deposit') {
+      i += 8  // Transactions are 8 lines
+      continue
+    }
     
     let typeLine: string
     let dateStr: string
@@ -416,11 +422,13 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
       if (typeLine === 'loss') {
         actualType = 'loss'
         profitLoss = -stake  // Loss = negative stake
+        console.log(`[v0] LOSS: ${match} | stake: ${stake} | profitLoss: ${profitLoss}`)
       } else if (typeLine === 'win') {
         actualType = 'win'
         // For wins, calculate profit from odds: profit = stake * (odds - 1)
         // This is more reliable than parsing the return field which can be inconsistent
         profitLoss = stake * (odds - 1)
+        console.log(`[v0] WIN: ${match} | stake: ${stake} | odds: ${odds} | profitLoss: ${profitLoss}`)
       } else if (typeLine === 'cashed out') {
         actualType = 'cashed_out'
         const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
