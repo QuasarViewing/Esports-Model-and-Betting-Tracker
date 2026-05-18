@@ -335,77 +335,56 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
   
   let i = 0
   while (i < lines.length) {
-    const typeLine = lines[i]?.toLowerCase()
-    
-    if (!typeLine) {
+    // Check if we have enough lines for a bet entry (9 lines)
+    if (i + 8 >= lines.length) {
       i++
       continue
     }
     
-    // Detect entry type
-    if (typeLine === 'withdraw' || typeLine === 'deposit') {
-      // Transaction format (8 lines): type, date+time, "Withdrawal/Deposit", status, -, display_amount, actual_amount, balance
-      const dateStr = lines[i + 1] || ''
+    // The data format has TYPE at the END (line 8), not the beginning!
+    // Format: date, match, selection, eventDate, odds, stake, profit, balance, type
+    const dateStr = lines[i] || ''
+    const match = lines[i + 1] || ''
+    const selection = lines[i + 2] || ''
+    const eventDate = lines[i + 3] || ''
+    const oddsStr = lines[i + 4] || ''
+    const stakeStr = lines[i + 5] || ''
+    const profitStr = lines[i + 6] || ''
+    const balanceStr = lines[i + 7] || ''
+    const typeLine = lines[i + 8]?.toLowerCase() || ''
+    
+    // Check if this looks like a valid bet entry by checking the type line
+    if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
       const { datePart, timePart } = parseDateString(dateStr)
+      const odds = parseFloat(oddsStr) || 0
+      const stake = Math.abs(parseFloat(stakeStr.replace(/[^0-9.-]/g, '') || '0'))
+      const balance = parseFloat(balanceStr.replace(/[^0-9.-]/g, '') || '0')
       
-      // Amount is at index 6 (e.g., "-$60.00" or "$500.00")
-      const amountStr = lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'
-      const amount = Math.abs(parseFloat(amountStr))
-      const balanceAfter = parseFloat(lines[i + 7]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      const hash = generateTxHash(datePart, timePart, typeLine, amount)
-      
-      transactions.push({
-        id: `tx-${Date.now()}-${i}`,
-        hash,
-        type: typeLine === 'withdraw' ? 'withdrawal' : 'deposit',
-        date: parseDate(dateStr),
-        dateString: datePart,
-        timeString: timePart,
-        amount,
-        balanceAfter
-      })
-      
-      i += 8
-    } else if (['win', 'loss', 'pending', 'cashed out', 'stake'].includes(typeLine)) {
-      // Bet format (9 lines): type, date+time, match, selection, eventDate, odds, stake, profit, balance
-      const dateStr = lines[i + 1] || ''
-      const { datePart, timePart } = parseDateString(dateStr)
-      const match = lines[i + 2] || ''
-      const selection = lines[i + 3] || ''
-      const eventDate = lines[i + 4] || ''
-      const odds = parseFloat(lines[i + 5] || '0')
-      const stake = Math.abs(parseFloat(lines[i + 6]?.replace(/[^0-9.-]/g, '') || '0'))
-      const profitStr = lines[i + 7]?.trim() || '-'
-      const balance = parseFloat(lines[i + 8]?.replace(/[^0-9.-]/g, '') || '0')
-      
-      // KEY FIX: Determine actual status from profit field, not just the type line
-      // If profit shows "-" it's pending, if it shows a number it's settled
-      // For losses, Tab shows "$0.00" as profit (you won nothing), but actual loss = -stake
+      // Determine actual status and profit/loss
       let actualType: ParsedBet['type']
       let profitLoss = 0
       
-      if (profitStr === '-' || profitStr === '') {
+      const profitTrimmed = profitStr.trim()
+      if (profitTrimmed === '-' || profitTrimmed === '') {
         actualType = 'pending'
         profitLoss = 0
       } else {
-        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        const displayedValue = parseFloat(profitTrimmed.replace(/[^0-9.-]/g, '') || '0')
         
-        // Tab shows losses as "$0.00" or "-$0.00" (you won nothing)
-        // Tab shows wins as TOTAL RETURN (stake × odds), not actual profit
         if (typeLine === 'loss') {
           actualType = 'loss'
           profitLoss = -stake  // Loss = negative stake
         } else if (typeLine === 'cashed out') {
           actualType = 'cashed_out'
-          // For cashed out, displayed value might be partial return
           profitLoss = displayedValue - stake
         } else if (typeLine === 'win' || displayedValue > 0) {
           actualType = 'win'
           // Tab shows total return, actual profit = return - stake
           profitLoss = displayedValue - stake
+        } else if (typeLine === 'stake') {
+          actualType = 'pending'
+          profitLoss = 0
         } else {
-          // If displayedValue <= 0 and not explicitly a win, it's a loss
           actualType = 'loss'
           profitLoss = -stake
         }
@@ -416,7 +395,6 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         const hash = generateHash(datePart, timePart, match, odds, stake)
         const vigMetrics = calculateVigMetrics(odds, game)
         
-        // Create bet signature for deduplication - NOW INCLUDES DATE so bets on different days aren't merged
         const betSignature = `${datePart}|${timePart}|${match}|${selection}|${odds}|${stake}`
         
         const bet: ParsedBet = {
@@ -437,7 +415,6 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
           tournament: detectTournament(match, selection, game),
           isLive: match.toLowerCase().includes('live'),
           betType: detectBetType(selection),
-          // Vig metrics
           impliedProbability: vigMetrics.impliedProbability,
           estimatedOpponentOdds: vigMetrics.estimatedOpponentOdds,
           breakEvenWinRate: vigMetrics.breakEvenWinRate,
@@ -448,18 +425,21 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         // If we've seen this bet before, keep the settled version
         const existing = seenBets.get(betSignature)
         if (existing) {
-          // If new one is settled and old one is pending, replace
           if (actualType !== 'pending' && existing.type === 'pending') {
             seenBets.set(betSignature, bet)
           }
-          // Otherwise keep the existing (already settled or both pending)
         } else {
           seenBets.set(betSignature, bet)
         }
       }
       
-      i += 9
+      i += 9  // Move to next entry
+    } else if (typeLine === 'withdraw' || typeLine === 'deposit') {
+      // Transaction - but these also have type at end!
+      // Skip for now - focus on bets first
+      i += 8
     } else {
+      // Not a valid entry type, move forward
       i++
     }
   }
@@ -550,8 +530,12 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
   let cumulative = 0
   const profitByDay = Array.from(profitByDayMap.entries())
     .sort((a, b) => {
-      const dateA = new Date(a[0].split('/').reverse().join('-'))
-      const dateB = new Date(b[0].split('/').reverse().join('-'))
+      // Date format is DD/MM/YY - need to properly convert to sortable date
+      const partsA = a[0].split('/')
+      const partsB = b[0].split('/')
+      // Convert DD/MM/YY to YYYY-MM-DD for proper sorting
+      const dateA = new Date(2000 + parseInt(partsA[2]), parseInt(partsA[1]) - 1, parseInt(partsA[0]))
+      const dateB = new Date(2000 + parseInt(partsB[2]), parseInt(partsB[1]) - 1, parseInt(partsB[0]))
       return dateA.getTime() - dateB.getTime()
     })
     .map(([date, profit]) => {
