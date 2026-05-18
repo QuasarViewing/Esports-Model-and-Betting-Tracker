@@ -601,7 +601,7 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
   })
   
   let cumulative = 0
-  const profitByDay = Array.from(profitByDayMap.entries())
+  const profitByDayRaw = Array.from(profitByDayMap.entries())
     .sort((a, b) => {
       // Date format is DD/MM/YY - need to properly convert to sortable date
       const partsA = a[0].split('/')
@@ -611,6 +611,15 @@ export function calculateStats(bets: ParsedBet[]): BettingStats {
       const dateB = new Date(2000 + parseInt(partsB[2]), parseInt(partsB[1]) - 1, parseInt(partsB[0]))
       return dateA.getTime() - dateB.getTime()
     })
+    .map(([date, profit]) => {
+      cumulative += profit
+      return { date, profit, cumulative }
+    })
+  
+  // Add starting point at $0 before first day
+  const profitByDay = profitByDayRaw.length > 0
+    ? [{ date: 'Start', profit: 0, cumulative: 0 }, ...profitByDayRaw]
+    : []
     .map(([date, profit]) => {
       cumulative += profit
       return { date, profit, cumulative }
