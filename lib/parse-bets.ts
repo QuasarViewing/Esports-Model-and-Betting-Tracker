@@ -61,11 +61,29 @@ export interface BettingStats {
 }
 
 const DOTA_TEAMS = [
-  'Tundra', 'Natus Vincere', 'Na\'Vi', 'Team Liquid', 'Team Spirit', 'Team Falcons',
-  'Xtreme Gaming', 'BetBoom', 'PARIVISION', 'PlayTime', 'GamerLegion', 'Aurora',
-  'Virtus.pro', 'VP', 'Cloud9', 'Vici Gaming', 'FURIA', 'ex-HEROIC', 'REKONIX',
-  'Gaimin Gladiators', '9Pandas', 'OG', 'Quest', 'Entity', 'Nigma'
+  'Tundra', 'Team Liquid', 'Team Falcons',
+  'Xtreme Gaming', 'PARIVISION', 'PlayTime', 'GamerLegion', 'Aurora',
+  'Virtus.pro', 'VP', 'Vici Gaming', 'FURIA', 'ex-HEROIC', 'REKONIX',
+  'Gaimin Gladiators', '9Pandas', 'OG', 'Quest', 'Entity', 'Nigma',
+  // Note: BetBoom, Navi, Spirit, Cloud9 play both Dota and CS - handled separately
 ]
+
+// Teams that ONLY play Dota (for disambiguation)
+const DOTA_ONLY_TEAMS = [
+  'Tundra', 'Team Falcons', 'Xtreme Gaming', 'PARIVISION', 'PlayTime', 
+  'Aurora', 'Virtus.pro', 'VP', 'REKONIX', 'Gaimin Gladiators', '9Pandas', 
+  'OG', 'Quest', 'Entity', 'Nigma', 'ex-HEROIC'
+]
+
+// Teams that ONLY play CS (for disambiguation)  
+const CSGO_ONLY_TEAMS = [
+  'FaZe', 'Astralis', 'ENCE', 'Heroic', 'MOUZ', 'Complexity', 'BIG', 
+  'NIP', 'Ninjas in Pyjamas', 'Monte', 'Eternal Fire', 'SAW', 'Imperial', 'paiN'
+]
+
+// Multi-game orgs that play both Dota and CS
+const DOTA_CS_SHARED = ['Natus Vincere', 'Navi', 'BetBoom', 'Spirit', 'Team Spirit', 
+  'Cloud9', 'GamerLegion', 'FURIA', 'Liquid', 'Team Liquid', 'Vitality', 'G2']
 
 const LOL_TEAMS = [
   'T1', 'Gen.G', 'DRX', 'KT Rolster', 'Hanwha Life', 'HLE', 'LOUD', '100 Thieves',
@@ -82,8 +100,10 @@ const LOL_REGION_TEAMS: Record<string, string[]> = {
 }
 
 const CSGO_TEAMS = [
-  'Navi', 'FaZe', 'G2', 'Vitality', 'Astralis', 'ENCE', 'Heroic', 'Cloud9',
-  'MOUZ', 'Complexity', 'BIG', 'NIP', 'Ninjas in Pyjamas'
+  'Navi', 'Natus Vincere', 'FaZe', 'G2 Esports', 'Vitality', 'Astralis', 'ENCE', 
+  'Heroic', 'MOUZ', 'Complexity', 'BIG', 'NIP', 'Ninjas in Pyjamas',
+  'BetBoom', 'BetBoom Team', 'Spirit', 'Team Spirit', 'Monte', 'GamerLegion',
+  'Cloud9', 'Liquid', 'FURIA', 'paiN', 'Imperial', 'Eternal Fire', 'SAW'
 ]
 
 const VALORANT_TEAMS = [
@@ -108,13 +128,13 @@ function generateTxHash(date: string, time: string, type: string, amount: number
 function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' | 'valorant' | 'other' {
   const text = `${match} ${selection}`.toLowerCase()
   
-  // Check Dota teams first - these are exclusive to Dota
-  for (const team of DOTA_TEAMS) {
+  // Check for EXCLUSIVE Dota teams first
+  for (const team of DOTA_ONLY_TEAMS) {
     if (text.includes(team.toLowerCase())) return 'dota2'
   }
   
-  // Check CS teams - mostly exclusive to CS
-  for (const team of CSGO_TEAMS) {
+  // Check for EXCLUSIVE CS teams
+  for (const team of CSGO_ONLY_TEAMS) {
     if (text.includes(team.toLowerCase())) return 'csgo'
   }
   
@@ -125,8 +145,28 @@ function detectGame(match: string, selection: string): 'dota2' | 'lol' | 'csgo' 
     }
   }
   
+  // For teams that play both Dota and CS, we need context
+  // Check if the match involves any shared team
+  const hasSharedTeam = DOTA_CS_SHARED.some(team => text.includes(team.toLowerCase()))
+  
+  if (hasSharedTeam) {
+    // If BOTH teams are shared orgs, look for other clues
+    // Check if the opponent is Dota-only or CS-only
+    for (const team of DOTA_ONLY_TEAMS) {
+      if (text.includes(team.toLowerCase())) return 'dota2'
+    }
+    for (const team of CSGO_ONLY_TEAMS) {
+      if (text.includes(team.toLowerCase())) return 'csgo'
+    }
+    // If we can't determine, check selection for game-specific bet types
+    if (selection.toLowerCase().includes('map') || selection.toLowerCase().includes('round')) {
+      return 'csgo' // CS uses maps/rounds terminology more
+    }
+    // Default to 'other' so user can correct it
+    return 'other'
+  }
+  
   // Teams that play BOTH Valorant and LoL - need context clues
-  // MIBR, LOUD, 100 Thieves play both games
   const multiGameOrgs = ['mibr', 'loud', '100 thieves', '100t']
   const isMultiGameOrg = multiGameOrgs.some(org => text.includes(org))
   
@@ -279,21 +319,23 @@ export function parseBettingData(rawText: string): { bets: ParsedBet[]; transact
         actualType = 'pending'
         profitLoss = 0
       } else {
-        const parsedProfit = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
+        const displayedValue = parseFloat(profitStr.replace(/[^0-9.-]/g, '') || '0')
         
         // Tab shows losses as "$0.00" or "-$0.00" (you won nothing)
-        // But the actual loss is the stake you lost
+        // Tab shows wins as TOTAL RETURN (stake × odds), not actual profit
         if (typeLine === 'loss') {
           actualType = 'loss'
           profitLoss = -stake  // Loss = negative stake
         } else if (typeLine === 'cashed out') {
           actualType = 'cashed_out'
-          profitLoss = parsedProfit
-        } else if (typeLine === 'win' || parsedProfit > 0) {
+          // For cashed out, displayed value might be partial return
+          profitLoss = displayedValue - stake
+        } else if (typeLine === 'win' || displayedValue > 0) {
           actualType = 'win'
-          profitLoss = parsedProfit  // Win = the profit shown
+          // Tab shows total return, actual profit = return - stake
+          profitLoss = displayedValue - stake
         } else {
-          // If parsedProfit <= 0 and not explicitly a win, it's a loss
+          // If displayedValue <= 0 and not explicitly a win, it's a loss
           actualType = 'loss'
           profitLoss = -stake
         }
