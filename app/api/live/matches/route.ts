@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const matches = await getLiveMatches(game)
     return NextResponse.json(matches)
   } catch (error) {
-    console.error('[v0] Live matches API error:', error)
+    console.error('Live matches API error:', error)
     return NextResponse.json([], { status: 200 })
   }
 }

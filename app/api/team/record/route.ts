@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const record = await getTeamRecord(teamName, game)
     return NextResponse.json(record || {})
   } catch (error) {
-    console.error('[v0] Team record API error:', error)
+    console.error('Team record API error:', error)
     return NextResponse.json({}, { status: 200 })
   }
 }

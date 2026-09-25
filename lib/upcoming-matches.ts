@@ -11,6 +11,22 @@ export interface UpcomingMatch {
   bestOf: number
   tier: string
   status: 'scheduled' | 'live' | 'completed'
+  stream?: string
+  game?: string
+}
+
+export interface UpcomingTournament {
+  id: string
+  name: string
+  tier: string
+  game: string
+  startDate: string
+  endDate: string
+  prizePool: string
+  status: 'upcoming' | 'ongoing' | 'completed'
+  region: string
+  location?: string
+  liquipediaUrl?: string
 }
 
 export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
@@ -142,7 +158,7 @@ export const UPCOMING_DOTA2_MATCHES: UpcomingMatch[] = [
   },
 ]
 
-export const UPCOMING_TOURNAMENTS = [
+export const UPCOMING_TOURNAMENTS: UpcomingTournament[] = [
   {
     id: 'dl29',
     name: 'Dream League Season 29',
