@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import type { BetStats } from '@/lib/parse-bets'
-import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Award, BarChart3, Flame, Zap } from 'lucide-react'
+import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Award, Clock, BarChart3, Flame, Zap } from 'lucide-react'
 
 interface StatsCardsProps {
   stats: BetStats
