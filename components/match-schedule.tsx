@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Clock, Trophy } from 'lucide-react'
-import { getUpcomingMatches, getTournaments } from '@/lib/upcoming-matches'
+import { Calendar, Clock, Trophy, Tv } from 'lucide-react'
 
 interface UpcomingMatch {
   team1: string
@@ -37,26 +36,22 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 export function MatchSchedule() {
   const [game, setGame] = useState<'dota2' | 'lol' | 'csgo' | 'valorant'>('dota2')
   const [view, setView] = useState<'matches' | 'tournaments'>('matches')
-
-  // Use seeded data as default, with API fallback
-  const seedMatches = getUpcomingMatches(game)
-  const seedTournaments = getTournaments(game)
+  const [tournamentStatus, setTournamentStatus] = useState<'ongoing' | 'upcoming' | 'completed'>('ongoing')
 
   const { data: apiMatches, isLoading: matchesLoading } = useSWR<UpcomingMatch[]>(
-    view === 'matches' ? `/api/liquipedia/schedule?game=${game}&limit=15` : null,
+    view === 'matches' ? `/api/pandascore/schedule?game=${game}&limit=15` : null,
     fetcher,
     { revalidateOnFocus: true, revalidateOnReconnect: true }
   )
 
   const { data: apiTournaments, isLoading: tournamentsLoading } = useSWR<Tournament[]>(
-    view === 'tournaments' ? `/api/liquipedia/tournaments?game=${game}&status=ongoing` : null,
+    view === 'tournaments' ? `/api/pandascore/tournaments?game=${game}&status=${tournamentStatus}` : null,
     fetcher,
     { revalidateOnFocus: true, revalidateOnReconnect: true }
   )
 
-  // Use API data if available, otherwise use seeded data
-  const matches = apiMatches && apiMatches.length > 0 ? apiMatches : seedMatches
-  const tournaments = apiTournaments && apiTournaments.length > 0 ? apiTournaments : seedTournaments
+  const matches = apiMatches || []
+  const tournaments = apiTournaments || []
   const isLoading = view === 'matches' ? matchesLoading : tournamentsLoading
 
   const formatDate = (dateStr: string) => {
@@ -113,7 +108,19 @@ export function MatchSchedule() {
                 <SelectItem value="tournaments">Tournaments</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={game} onValueChange={setGame}>
+            {view === 'tournaments' && (
+              <Select value={tournamentStatus} onValueChange={(v) => setTournamentStatus(v as 'ongoing' | 'upcoming' | 'completed')}>
+                <SelectTrigger className="w-[120px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={game} onValueChange={(v) => setGame(v as 'dota2' | 'lol' | 'csgo' | 'valorant')}>
               <SelectTrigger className="w-[120px] h-8">
                 <SelectValue />
               </SelectTrigger>

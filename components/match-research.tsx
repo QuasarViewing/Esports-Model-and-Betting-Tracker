@@ -2,14 +2,15 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { TeamSearchInput } from '@/components/team-search-input'
 import { TeamInfo } from '@/components/team-info'
 import { HeadToHead } from '@/components/head-to-head'
 import { MatchHistory } from '@/components/match-history'
 import { MatchSchedule } from '@/components/match-schedule'
 import { LiveMatches } from '@/components/live-matches'
+import { DotaMatchupCard } from '@/components/dota-matchup-card'
 import { Search, Swords } from 'lucide-react'
 
 const games = [
@@ -49,19 +50,21 @@ export function MatchResearch() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-3">
-            <Input
-              placeholder="Team 1 (e.g., Team Spirit)"
+            <TeamSearchInput
               value={team1}
-              onChange={(e) => setTeam1(e.target.value)}
+              onChange={setTeam1}
+              game={game}
+              placeholder="Team 1 (e.g., Team Spirit)"
               className="flex-1"
             />
             <div className="flex items-center justify-center">
               <Swords className="h-4 w-4 text-muted-foreground" />
             </div>
-            <Input
-              placeholder="Team 2 (e.g., Natus Vincere)"
+            <TeamSearchInput
               value={team2}
-              onChange={(e) => setTeam2(e.target.value)}
+              onChange={setTeam2}
+              game={game}
+              placeholder="Team 2 (e.g., PARIVISION)"
               className="flex-1"
             />
             <Select value={game} onValueChange={(v) => setGame(v as typeof game)}>
@@ -85,6 +88,11 @@ export function MatchResearch() {
       {/* Results */}
       {searchTeams && (
         <div className="space-y-6">
+          {/* STRATZ matchup — Dota 2 only */}
+          {searchTeams.game === 'dota2' && (
+            <DotaMatchupCard team1={searchTeams.team1} team2={searchTeams.team2} />
+          )}
+
           {/* Head to Head */}
           <HeadToHead team1={searchTeams.team1} team2={searchTeams.team2} game={searchTeams.game} />
 
@@ -96,8 +104,8 @@ export function MatchResearch() {
 
           {/* Match Histories */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <MatchHistory teamName={searchTeams.team1} game={searchTeams.game} limit={5} />
-            <MatchHistory teamName={searchTeams.team2} game={searchTeams.game} limit={5} />
+            <MatchHistory teamName={searchTeams.team1} game={searchTeams.game} limit={30} />
+            <MatchHistory teamName={searchTeams.team2} game={searchTeams.game} limit={30} />
           </div>
         </div>
       )}

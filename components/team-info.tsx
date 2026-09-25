@@ -43,7 +43,7 @@ const gameNames: Record<string, string> = {
 
 export function TeamInfo({ teamName, game, compact = false }: TeamInfoProps) {
   const { data: team, isLoading, error } = useSWR<TeamData>(
-    `/api/liquipedia/team?name=${encodeURIComponent(teamName)}&game=${game}`,
+    `/api/pandascore/team?name=${encodeURIComponent(teamName)}&game=${game}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60000 }
   )
@@ -135,17 +135,7 @@ export function TeamInfo({ teamName, game, compact = false }: TeamInfoProps) {
               {team.region}
             </div>
           )}
-          {team.win_rate !== undefined && (
-            <div className="flex items-center gap-1.5">
-              <Trophy className="h-4 w-4 text-yellow-500" />
-              <span className={cn(
-                'font-medium',
-                team.win_rate >= 50 ? 'text-chart-1' : 'text-destructive'
-              )}>
-                {team.win_rate.toFixed(1)}% WR
-              </span>
-            </div>
-          )}
+          {/* win_rate intentionally omitted — TeamRecord below shows the computed win rate from match history */}
           {team.liquipedia_url && (
             <a
               href={team.liquipedia_url}

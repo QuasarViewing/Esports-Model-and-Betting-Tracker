@@ -41,7 +41,7 @@ export function LiveMatches() {
             <Radio className="h-5 w-5 text-destructive animate-pulse" />
             Live Matches
           </CardTitle>
-          <Select value={game} onValueChange={setGame}>
+          <Select value={game} onValueChange={(v) => setGame(v as 'dota2' | 'lol' | 'csgo' | 'valorant')}>
             <SelectTrigger className="w-[120px]">
               <SelectValue />
             </SelectTrigger>

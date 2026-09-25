@@ -4,6 +4,7 @@ import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { History, Trophy } from 'lucide-react'
 
@@ -25,7 +26,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.ok ? r.json() : null)
 
 export function MatchHistory({ teamName, game, limit = 10 }: MatchHistoryProps) {
   const { data: matches, isLoading, error } = useSWR<MatchResult[]>(
-    `/api/liquipedia/matches?team=${encodeURIComponent(teamName)}&game=${game}&limit=${limit}`,
+    `/api/pandascore/matches?team=${encodeURIComponent(teamName)}&game=${game}&limit=${limit}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60000 }
   )
@@ -103,6 +104,7 @@ export function MatchHistory({ teamName, game, limit = 10 }: MatchHistoryProps) 
         </div>
       </CardHeader>
       <CardContent>
+        <ScrollArea className="h-[420px] pr-3">
         <div className="space-y-1">
           {matches.map((match, i) => (
             <div
@@ -140,6 +142,7 @@ export function MatchHistory({ teamName, game, limit = 10 }: MatchHistoryProps) 
             </div>
           ))}
         </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   )

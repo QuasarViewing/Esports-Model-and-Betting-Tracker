@@ -26,7 +26,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.ok ? r.json() : null)
 
 export function HeadToHead({ team1, team2, game }: HeadToHeadProps) {
   const { data, isLoading, error } = useSWR<H2HData>(
-    `/api/liquipedia/h2h?team1=${encodeURIComponent(team1)}&team2=${encodeURIComponent(team2)}&game=${game}`,
+    `/api/pandascore/h2h?team1=${encodeURIComponent(team1)}&team2=${encodeURIComponent(team2)}&game=${game}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60000 }
   )
