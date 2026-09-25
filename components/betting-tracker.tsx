@@ -8,14 +8,21 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { parseBettingData, calculateStats, checkDuplicates, type ParsedBet, type ParsedTransaction, type ImportResult } from '@/lib/parse-bets'
-import { getExistingHashes, saveBets, saveTransactions, getAllBets, getAllTransactions, type DbBet, type DbTransaction } from '@/lib/actions'
+import { getExistingHashes, saveBets, updateSettledBets, saveTransactions, getAllBets, getAllTransactions, type DbBet, type DbTransaction } from '@/lib/actions'
 import { StatsCards } from './stats-cards'
 import { BetsTable } from './bets-table'
 import { ProfitChart } from './profit-chart'
 import { GameBreakdown } from './game-breakdown'
 import { ImportSummary } from './import-summary'
-import { ClipboardPaste, Trash2, Upload, Loader2, Gamepad2, Zap, BarChart3, History, TrendingUp, AlertCircle, Search } from 'lucide-react'
+import { ClipboardPaste, Trash2, Upload, Loader2, Gamepad2, Zap, BarChart3, History, TrendingUp, AlertCircle, Search, Brain, CalendarDays } from 'lucide-react'
 import { MatchResearch } from './match-research'
+import { ModelDashboard } from './model/model-dashboard'
+import { DailyLog } from './daily-log'
+import { RoiByTag } from './roi-by-tag'
+import { CalibrationCard } from './calibration-card'
+import { KellyCalculator } from './kelly-calculator'
+import { VarianceCard } from './variance-card'
+import { ClvChart } from './clv-chart'
 
 export function BettingTracker() {
   const [rawInput, setRawInput] = useState('')
@@ -41,7 +48,7 @@ export function BettingTracker() {
       setRawInput('')
       window.location.reload()
     } catch (error) {
-      console.error('[v0] Clear data error:', error)
+      console.error('Clear data error:', error)
       alert('Failed to clear data')
     } finally {
       setIsClearing(false)
@@ -68,7 +75,7 @@ export function BettingTracker() {
         setDbBets(betsData)
         setDbTransactions(txData)
       } catch (err) {
-        console.error('[v0] Error loading data:', err)
+        console.error('Error loading data:', err)
         setError('Failed to load data from database')
       }
       setIsLoading(false)
@@ -76,14 +83,32 @@ export function BettingTracker() {
     loadData()
   }, [])
 
+  // ISO "YYYY-MM-DD" → display "DD/MM/YY"
+  const isoToDisplayDate = (iso: string | null | undefined): string => {
+    if (!iso) return ''
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : iso
+  }
+
+  // Postgres "HH:MM:SS" → display "H:MMAM/PM"
+  const pgTimeToDisplay = (t: string | null | undefined): string => {
+    if (!t) return ''
+    const m = t.match(/^(\d{2}):(\d{2})/)
+    if (!m) return t
+    let h = parseInt(m[1], 10)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12 || 12
+    return `${h}:${m[2]}${ampm}`
+  }
+
   // Convert DB bets to ParsedBet format for stats calculation
   const allBets: ParsedBet[] = useMemo(() => dbBets.map(b => ({
     id: b.id,
     hash: b.bet_hash,
     type: b.status as ParsedBet['type'],
     date: b.date,
-    dateString: b.date,
-    timeString: b.time || '',
+    dateString: isoToDisplayDate(b.date),
+    timeString: pgTimeToDisplay(b.time),
     match: b.match,
     selection: b.selection,
     eventDate: '',
@@ -100,8 +125,24 @@ export function BettingTracker() {
     estimatedOpponentOdds: b.estimated_opponent_odds ? Number(b.estimated_opponent_odds) : 0,
     breakEvenWinRate: b.break_even_win_rate ? Number(b.break_even_win_rate) : (1 / Number(b.odds)) * 100,
     noVigProbability: b.no_vig_probability ? Number(b.no_vig_probability) : 0,
-    vigAmount: b.vig_amount ? Number(b.vig_amount) : 0
+    vigAmount: b.vig_amount ? Number(b.vig_amount) : 0,
+    tag: b.tag ?? null,
+    oddsAtPlacement: b.odds_at_placement !== null ? Number(b.odds_at_placement) : Number(b.odds),
+    closingOdds: b.closing_odds !== null ? Number(b.closing_odds) : null,
+    clvPct: b.clv_pct !== null ? Number(b.clv_pct) : null
   })), [dbBets])
+
+  const handleTagChange = (betId: string, tag: string | null) => {
+    setDbBets(prev => prev.map(b => b.id === betId ? { ...b, tag } : b))
+  }
+
+  const handleClosingOddsChange = (betId: string, closingOdds: number | null, clvPct: number | null) => {
+    setDbBets(prev => prev.map(b => b.id === betId ? { ...b, closing_odds: closingOdds, clv_pct: clvPct } : b))
+  }
+
+  const handleGameChange = (betId: string, game: ParsedBet['game']) => {
+    setDbBets(prev => prev.map(b => b.id === betId ? { ...b, game } : b))
+  }
 
   const stats = useMemo(() => calculateStats(allBets), [allBets])
 
@@ -117,7 +158,7 @@ export function BettingTracker() {
         setPasteError('Clipboard is empty')
       }
     } catch (err) {
-      console.error('[v0] Failed to paste:', err)
+      console.error('Failed to paste:', err)
       setPasteError('Clipboard access denied. Please paste manually using Ctrl+V / Cmd+V in the text area.')
     }
   }
@@ -130,20 +171,42 @@ export function BettingTracker() {
     try {
       // Parse the raw input
       const { bets: parsedBets, transactions: parsedTx } = parseBettingData(rawInput)
-      
+
+      if (parsedBets.length === 0 && parsedTx.length === 0) {
+        setError('Could not recognise any bets or transactions in that text. Copy the full account activity list, including the timestamp line for each entry.')
+        setIsImporting(false)
+        return
+      }
+
       // Get existing hashes from database
-      const { betHashes, txHashes } = await getExistingHashes()
-      
+      const { betStatuses, txHashes } = await getExistingHashes()
+
       // Check for duplicates
-      const result = checkDuplicates(parsedBets, parsedTx, betHashes, txHashes)
+      const result = checkDuplicates(parsedBets, parsedTx, betStatuses, txHashes)
       setImportResult(result)
-      
-      // Save new entries to database
+
+      // Save new entries to database — surface errors instead of swallowing them.
+      const writeErrors: string[] = []
       if (result.newBets.length > 0) {
-        await saveBets(result.newBets)
+        const r = await saveBets(result.newBets)
+        if (r.errors.length > 0) writeErrors.push(...r.errors)
+        if (r.inserted < result.newBets.length) {
+          writeErrors.unshift(`Only ${r.inserted}/${result.newBets.length} bets saved`)
+        }
+      }
+      if (result.updatedBets.length > 0) {
+        const r = await updateSettledBets(result.updatedBets)
+        if (r.errors.length > 0) writeErrors.push(...r.errors)
       }
       if (result.newTransactions.length > 0) {
-        await saveTransactions(result.newTransactions)
+        const r = await saveTransactions(result.newTransactions)
+        if (r.errors.length > 0) writeErrors.push(...r.errors)
+        if (r.inserted < result.newTransactions.length) {
+          writeErrors.unshift(`Only ${r.inserted}/${result.newTransactions.length} transactions saved`)
+        }
+      }
+      if (writeErrors.length > 0) {
+        setError(writeErrors.slice(0, 3).join(' • '))
       }
       
       // Refresh data from database
@@ -159,7 +222,7 @@ export function BettingTracker() {
       setRawInput('')
       
     } catch (err) {
-      console.error('[v0] Error importing:', err)
+      console.error('Error importing:', err)
       setError('Failed to import data. Please check the format and try again.')
     }
     setIsImporting(false)
@@ -285,27 +348,36 @@ export function BettingTracker() {
 
         {/* Quick Stats Bar */}
         {stats.totalBets > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className={`grid grid-cols-2 md:grid-cols-3 gap-3 ${stats.clv.bets > 0 ? 'lg:grid-cols-7' : 'lg:grid-cols-6'}`}>
             <QuickStat label="Total Bets" value={stats.totalBets.toString()} />
-            <QuickStat 
-              label="Win Rate" 
-              value={`${stats.winRate.toFixed(1)}%`} 
+            <QuickStat
+              label="Win Rate"
+              value={`${stats.winRate.toFixed(1)}%`}
               highlight={stats.winRate > 50}
             />
             <QuickStat label="Avg Odds" value={stats.averageOdds.toFixed(2)} />
             <QuickStat label="Avg Stake" value={`$${stats.averageStake.toFixed(0)}`} />
-            <QuickStat 
-              label="Streak" 
+            <QuickStat
+              label="Streak"
               value={`${stats.currentStreak.count} ${stats.currentStreak.type === 'win' ? 'W' : 'L'}`}
               highlight={stats.currentStreak.type === 'win' && stats.currentStreak.count >= 3}
               negative={stats.currentStreak.type === 'loss' && stats.currentStreak.count >= 3}
             />
-            <QuickStat 
-              label="Pending" 
+            <QuickStat
+              label="Pending"
               value={`${stats.pendingBets} bets`}
               warning={stats.pendingBets > 0}
               subtitle={stats.pendingStake > 0 ? `$${stats.pendingStake.toFixed(0)} at risk` : undefined}
             />
+            {stats.clv.bets > 0 && (
+              <QuickStat
+                label="Avg CLV"
+                value={`${stats.clv.avgClvPct >= 0 ? '+' : ''}${stats.clv.avgClvPct.toFixed(2)}%`}
+                highlight={stats.clv.avgClvPct > 0}
+                negative={stats.clv.avgClvPct < 0}
+                subtitle={`${stats.clv.bets} of ${stats.totalBets}`}
+              />
+            )}
           </div>
         )}
 
@@ -338,9 +410,17 @@ export function BettingTracker() {
               <TrendingUp className="h-4 w-4" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="daily-log" className="gap-2 data-[state=active]:bg-card">
+              <CalendarDays className="h-4 w-4" />
+              Daily Log
+            </TabsTrigger>
             <TabsTrigger value="research" className="gap-2 data-[state=active]:bg-card">
               <Search className="h-4 w-4" />
               Research
+            </TabsTrigger>
+            <TabsTrigger value="model" className="gap-2 data-[state=active]:bg-card">
+              <Brain className="h-4 w-4" />
+              Model
             </TabsTrigger>
           </TabsList>
 
@@ -459,11 +539,13 @@ and will be skipped if already imported.`}
             </Card>
 
             {showImportSummary && importResult && (
-              <ImportSummary 
-                result={importResult} 
+              <ImportSummary
+                result={importResult}
                 onClose={() => setShowImportSummary(false)}
               />
             )}
+
+            <KellyCalculator bankroll={currentBalance} />
           </TabsContent>
 
           {/* History Tab */}
@@ -475,13 +557,13 @@ and will be skipped if already imported.`}
                 <TabsTrigger value="pending">Pending ({pendingBets.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="all">
-                <BetsTable bets={allBets} title="All Betting History" />
+                <BetsTable bets={allBets} title="All Betting History" enableTagEdit enableClvEdit enableGameEdit onTagChange={handleTagChange} onClvChange={handleClosingOddsChange} onGameChange={handleGameChange} />
               </TabsContent>
               <TabsContent value="settled">
-                <BetsTable bets={settledBets} title="Settled Bets" />
+                <BetsTable bets={settledBets} title="Settled Bets" enableTagEdit enableClvEdit enableGameEdit onTagChange={handleTagChange} onClvChange={handleClosingOddsChange} onGameChange={handleGameChange} />
               </TabsContent>
               <TabsContent value="pending">
-                <BetsTable bets={pendingBets} title="Pending Bets" />
+                <BetsTable bets={pendingBets} title="Pending Bets" enableTagEdit enableClvEdit enableGameEdit onTagChange={handleTagChange} onClvChange={handleClosingOddsChange} onGameChange={handleGameChange} />
               </TabsContent>
             </Tabs>
             
@@ -536,7 +618,16 @@ and will be skipped if already imported.`}
                   <ProfitChart profitByDay={stats.profitByDay} totalProfit={truePL} />
                   <GameBreakdown profitByGame={stats.profitByGame} stats={stats} />
                 </div>
-                
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <RoiByTag profitByTag={stats.profitByTag} />
+                  <CalibrationCard buckets={stats.calibrationBuckets} />
+                </div>
+
+                <ClvChart clv={stats.clv} />
+
+                <VarianceCard variance={stats.variance} />
+
                 {/* Bankroll Summary */}
                 <Card className="stat-card">
                   <CardHeader>
@@ -590,9 +681,25 @@ and will be skipped if already imported.`}
             )}
           </TabsContent>
 
+          {/* Daily Log Tab */}
+          <TabsContent value="daily-log" className="space-y-6">
+            <DailyLog
+              bets={allBets}
+              transactions={dbTransactions}
+              currentBalance={currentBalance}
+              totalDeposits={totalDeposits}
+              totalWithdrawals={totalWithdrawals}
+            />
+          </TabsContent>
+
           {/* Research Tab */}
           <TabsContent value="research" className="space-y-6">
             <MatchResearch />
+          </TabsContent>
+
+          {/* Model Tab */}
+          <TabsContent value="model" className="space-y-6">
+            <ModelDashboard />
           </TabsContent>
         </Tabs>
       </div>

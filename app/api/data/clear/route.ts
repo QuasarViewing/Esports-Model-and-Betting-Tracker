@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       .gt('created_at', '1900-01-01')
 
     if (betsError) {
-      console.error('[v0] Error deleting bets:', betsError)
+      console.error('Error deleting bets:', betsError)
       return NextResponse.json({ error: `Failed to delete bets: ${betsError.message}` }, { status: 500 })
     }
 
@@ -23,23 +23,19 @@ export async function POST(request: NextRequest) {
       .gt('created_at', '1900-01-01')
 
     if (txError) {
-      console.error('[v0] Error deleting transactions:', txError)
+      console.error('Error deleting transactions:', txError)
       return NextResponse.json({ error: `Failed to delete transactions: ${txError.message}` }, { status: 500 })
     }
 
-    console.log('[v0] Deleted', txCount, 'transactions')
-    console.log('[v0] Data clear completed successfully')
+    console.log('Data clear completed successfully')
 
     return NextResponse.json({ 
       success: true, 
-      message: 'All data cleared successfully',
-      deletedBets: betsCount,
-      deletedTransactions: txCount
+      message: 'All data cleared successfully'
     })
   } catch (error) {
-    console.error('[v0] Clear data error:', error)
+    console.error('Clear data error:', error)
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: `Failed to clear data: ${errorMsg}` }, { status: 500 })
   }
 }
-

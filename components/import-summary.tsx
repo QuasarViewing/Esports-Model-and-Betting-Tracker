@@ -17,10 +17,11 @@ export function ImportSummary({ result, onClose }: ImportSummaryProps) {
   const totalTx = result.transactions.length
   const newBets = result.newBets.length
   const newTx = result.newTransactions.length
+  const settled = result.updatedBets.length
   const dupBets = result.duplicateBets.length
   const dupTx = result.duplicateTransactions.length
 
-  const hasNew = newBets > 0 || newTx > 0
+  const hasNew = newBets > 0 || newTx > 0 || settled > 0
   const hasDuplicates = dupBets > 0 || dupTx > 0
 
   return (
@@ -52,16 +53,17 @@ export function ImportSummary({ result, onClose }: ImportSummaryProps) {
             sublabel={`${newBets} bets, ${newTx} tx`}
             variant="success"
           />
-          <SummaryBox 
-            label="Duplicates Skipped" 
-            value={dupBets + dupTx} 
+          <SummaryBox
+            label="Settled"
+            value={settled}
+            sublabel="pending bets resolved"
+            variant={settled > 0 ? 'success' : 'default'}
+          />
+          <SummaryBox
+            label="Duplicates Skipped"
+            value={dupBets + dupTx}
             sublabel={`${dupBets} bets, ${dupTx} tx`}
             variant={hasDuplicates ? 'warning' : 'default'}
-          />
-          <SummaryBox 
-            label="Win/Loss/Pending" 
-            value={`${result.newBets.filter(b => b.type === 'win').length}/${result.newBets.filter(b => b.type === 'loss').length}/${result.newBets.filter(b => b.type === 'pending').length}`}
-            sublabel="from new bets"
           />
         </div>
 
@@ -212,7 +214,7 @@ export function ImportSummary({ result, onClose }: ImportSummaryProps) {
           <div className="text-center py-4">
             <AlertTriangle className="h-8 w-8 text-warning mx-auto mb-2" />
             <p className="text-muted-foreground">
-              All entries in this import already exist in your database.
+              Nothing new — all {totalBets + totalTx} entries were already in your database, unchanged.
             </p>
           </div>
         )}
