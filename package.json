@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "model:check": "npx tsx scripts/model-checks.ts",
+    "model:backtest": "npx tsx scripts/backtest-replay.ts",
+    "model:setup": "npx tsx scripts/setup-model-tables.ts",
+    "model:populate": "npx tsx scripts/populate-all.ts",
+    "model:refresh-heroes": "npx tsx scripts/populate-hero-meta.ts",
+    "model:refresh-teams": "npx tsx scripts/populate-team-ratings.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -67,6 +73,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "pg": "^8.21.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
